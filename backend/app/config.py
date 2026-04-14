@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3-flash-preview"
 
     gemini_daily_verify_limit: int = 0  # 0 = no proactive cap
     verify_cooldown_seconds: int = 3600

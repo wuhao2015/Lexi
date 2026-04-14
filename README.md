@@ -59,7 +59,7 @@ Then open `http://localhost:8000/` with only uvicorn running.
 | Variable | Description |
 |----------|-------------|
 | `GEMINI_API_KEY` | Required for translating new terms (not in global cache) and for Gemini-based review grading when available |
-| `GEMINI_MODEL` | Model id (default `gemini-2.0-flash`) |
+| `GEMINI_MODEL` | Model id (default `gemini-3-flash-preview`) |
 | `JWT_SECRET` | Secret for signing JWT access tokens |
 | `GEMINI_DAILY_VERIFY_LIMIT` | Max Gemini verify calls per UTC day; `0` means no limit |
 | `VERIFY_COOLDOWN_SECONDS` | After a verify 429, skip Gemini verify for this many seconds |
