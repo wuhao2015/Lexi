@@ -25,7 +25,25 @@ from app.schemas import (
     TokenOut,
     UserOut,
 )
-from app.translation import get_or_create_global_translation, upsert_user_vocabulary
+from app.translation import (
+    TranslationProviderError,
+    get_or_create_global_translation,
+    upsert_user_vocabulary,
+)
+
+
+def _friendly_translation_error_detail(code: str) -> str:
+    if code == "missing_api_key":
+        return "Translation service is not configured yet. Please set GEMINI_API_KEY on the server."
+    if code == "rate_limited":
+        return "Translation is temporarily rate limited. Please wait a moment and try again."
+    if code == "service_unavailable":
+        return "Translation service is busy right now. Please retry in a few seconds."
+    if code == "empty_response":
+        return "Translation service returned an empty response. Please try again."
+    if code == "parse_failed":
+        return "Could not parse translation result. Please try again."
+    return "Translation failed. Please try again."
 
 
 @asynccontextmanager
@@ -92,9 +110,10 @@ def lookup(
         db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except RuntimeError as e:
+    except TranslationProviderError as e:
         db.rollback()
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        detail = _friendly_translation_error_detail(e.code)
+        raise HTTPException(status_code=502, detail=detail) from e
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=502, detail=f"Translation failed: {e}") from e

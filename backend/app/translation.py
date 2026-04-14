@@ -10,6 +10,12 @@ from app.config import Settings
 from app.db import TranslationCache, Vocabulary, dumps_alt, normalize_term
 
 
+class TranslationProviderError(RuntimeError):
+    def __init__(self, code: str, message: str = ""):
+        super().__init__(message or code)
+        self.code = code
+
+
 def _strip_code_fences(text: str) -> str:
     t = text.strip()
     if t.startswith("```"):
@@ -33,7 +39,7 @@ def parse_translation_response(raw: str) -> Tuple[str, Optional[List[str]]]:
 
 def call_gemini_translate(term: str, settings: Settings) -> Tuple[str, Optional[List[str]]]:
     if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
+        raise TranslationProviderError("missing_api_key")
     client = genai.Client(api_key=settings.gemini_api_key)
     prompt = (
         "Translate the following English word or phrase to Simplified Chinese.\n"
@@ -50,17 +56,22 @@ def call_gemini_translate(term: str, settings: Settings) -> Tuple[str, Optional[
             config={"temperature": 0.2},
         )
     except genai_errors.ClientError as e:
-        if getattr(e, "status_code", None) == 429:
-            raise RuntimeError("Gemini rate limited (429)") from e
+        status_code = getattr(e, "status_code", None)
+        if status_code == 429:
+            raise TranslationProviderError("rate_limited") from e
+        if status_code == 503:
+            raise TranslationProviderError("service_unavailable") from e
         raise
     except Exception as e:
         msg = str(e).lower()
         if "429" in msg or "resource exhausted" in msg:
-            raise RuntimeError("Gemini rate limited") from e
+            raise TranslationProviderError("rate_limited") from e
+        if "503" in msg or "unavailable" in msg or "high demand" in msg:
+            raise TranslationProviderError("service_unavailable") from e
         raise
     text = getattr(resp, "text", None) or ""
     if not text.strip():
-        raise RuntimeError("Empty response from Gemini")
+        raise TranslationProviderError("empty_response")
     return parse_translation_response(text)
 
 
@@ -88,7 +99,7 @@ def get_or_create_global_translation(
 
     primary, alts = call_gemini_translate(raw_term.strip(), settings)
     if not primary.strip():
-        raise RuntimeError("Could not parse translation")
+        raise TranslationProviderError("parse_failed")
 
     if row is None:
         row = TranslationCache(
