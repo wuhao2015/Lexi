@@ -1,1 +1,1 @@
-# word_killer backend
+# Lexi backend

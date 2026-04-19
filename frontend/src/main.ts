@@ -53,7 +53,7 @@ function layout(content: string): string {
     : "";
   return `
     <header>
-      <h1>Word Killer</h1>
+      <h1>Lexi</h1>
       <p class="subtitle">English → 中文 dictionary & spaced-style review</p>
       ${nav}
     </header>

@@ -1,4 +1,4 @@
-const TOKEN_KEY = "wk_token";
+const TOKEN_KEY = "lexi_token";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);

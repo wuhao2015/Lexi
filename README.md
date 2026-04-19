@@ -1,4 +1,4 @@
-# Word Killer
+# Lexi
 
 A small full-stack dictionary web app: **English → 简体中文** lookups (backed by **Gemini** with a **global translation cache**), per-user review queues, and **hybrid grading** (Gemini when quota allows, otherwise offline fuzzy match against the stored gloss).
 
@@ -30,7 +30,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - JSON API: `http://localhost:8000/api` (e.g. `GET /api/health`, interactive docs at `http://localhost:8000/api/docs`)
 - Web UI: `http://localhost:8000/` after you build the frontend (see below)
 
-SQLite database file (default): `backend/data/word_killer.db`
+SQLite database file (default): `backend/data/lexi.db`. If you upgraded from an older tree that used `word_killer.db`, copy it to `lexi.db` or set `DATABASE_URL` to the old file path.
 
 ## Frontend (dev)
 

@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 
 
 # --- API sub-application (mounted at /api) ---
-api = FastAPI(title="Word Killer API", docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
+api = FastAPI(title="Lexi API", docs_url="/docs", redoc_url="/redoc", openapi_url="/openapi.json")
 
 
 @api.get("/health")
@@ -193,7 +193,7 @@ else:
     def root_placeholder():
         return JSONResponse(
             {
-                "message": "Word Killer API",
+                "message": "Lexi API",
                 "api": "/api",
                 "docs": "/api/docs",
                 "hint": "Build the frontend (outputs to backend/static) or use Vite dev with proxy to /api.",

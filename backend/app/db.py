@@ -89,7 +89,7 @@ class QuotaState(Base):
 def _default_sqlite_url() -> str:
     data_dir = Path(__file__).resolve().parent.parent / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{data_dir / 'word_killer.db'}"
+    return f"sqlite:///{data_dir / 'lexi.db'}"
 
 
 def make_engine(database_url: Optional[str] = None):
