@@ -1,5 +1,8 @@
 import { defineConfig } from "vite";
 
+// Vercel sets VERCEL=1 during build; output must stay inside the project root there.
+const outDir = process.env.VERCEL ? "dist" : "../backend/static";
+
 export default defineConfig({
   server: {
     proxy: {
@@ -10,7 +13,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: "../backend/static",
+    outDir,
     emptyOutDir: true,
   },
 });

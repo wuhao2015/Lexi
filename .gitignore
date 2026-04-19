@@ -6,5 +6,6 @@ backend/static/
 *.db
 *.pyc
 frontend/node_modules/
+frontend/dist/
 .env
 backend/.env

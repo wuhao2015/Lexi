@@ -54,6 +54,18 @@ npm run build
 
 Then open `http://localhost:8000/` with only uvicorn running.
 
+## Deploying the frontend to [Vercel](https://vercel.com/)
+
+Vercel is a good fit for the **Vite UI**. The **FastAPI** app uses SQLite and a long‑running server, so run the API on a VPS, [Railway](https://railway.app/), [Render](https://render.com/), [Fly.io](https://fly.io/), or similar, then point the static site at that API.
+
+1. Push this repository to GitHub (or GitLab / Bitbucket).
+2. In Vercel: **Add New Project** → import the repo.
+3. Set **Root Directory** to `frontend` (the repo has no root `package.json`).
+4. **Environment variables** (Production): add `VITE_API_BASE_URL` with your public API origin, **no trailing slash** (for example `https://lexi-api.example.com`). Vite bakes this in at build time; redeploy after you change it.
+5. Deploy. Open the `.vercel.app` URL and confirm login and lookups work.
+
+On the API host, set **`CORS_ORIGINS`** to include your Vercel site URL (for example `https://your-app.vercel.app`), comma‑separated with any other origins you use. Set **`JWT_SECRET`**, **`GEMINI_API_KEY`**, and the rest of the backend variables there as well.
+
 ## Environment variables
 
 | Variable | Description |
@@ -65,6 +77,12 @@ Then open `http://localhost:8000/` with only uvicorn running.
 | `VERIFY_COOLDOWN_SECONDS` | After a verify 429, skip Gemini verify for this many seconds |
 | `CORS_ORIGINS` | Comma-separated origins (default includes Vite `http://localhost:5173`) |
 | `DATABASE_URL` | Optional SQLAlchemy URL; default is SQLite under `backend/data/` |
+
+### Frontend (Vite) — build-time
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_BASE_URL` | Optional. Public origin of the FastAPI server (no trailing slash). Omit locally so `/api` uses the Vite dev proxy. Required for a Vercel build that talks to a separate API. |
 
 ## API overview
 

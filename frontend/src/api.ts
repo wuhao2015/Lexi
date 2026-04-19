@@ -1,5 +1,8 @@
 const TOKEN_KEY = "lexi_token";
 
+/** Production: set VITE_API_BASE_URL to your API origin (no trailing slash), e.g. https://api.example.com */
+const apiOrigin = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -51,7 +54,8 @@ export async function api<T>(
     body = JSON.stringify(jsonBody);
   }
 
-  const r = await fetch(`/api${path}`, { ...rest, headers, body });
+  const url = apiOrigin ? `${apiOrigin}/api${path}` : `/api${path}`;
+  const r = await fetch(url, { ...rest, headers, body });
   if (r.status === 204) return undefined as T;
   if (!r.ok) throw new ApiError(r.status, await parseError(r));
   if (r.headers.get("content-length") === "0") return undefined as T;
