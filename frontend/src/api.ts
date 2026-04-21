@@ -1,7 +1,18 @@
 const TOKEN_KEY = "lexi_token";
 
 /** Production: set VITE_API_BASE_URL to your API origin (no trailing slash), e.g. https://api.example.com */
-const apiOrigin = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const configuredApiOrigin = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+
+/**
+ * Browsers block HTTPS pages from calling HTTP APIs (mixed content).
+ * If misconfigured, fall back to same-origin `/api` so a Vercel rewrite can proxy safely.
+ */
+const apiOrigin =
+  typeof window !== "undefined" &&
+  window.location.protocol === "https:" &&
+  configuredApiOrigin.startsWith("http://")
+    ? ""
+    : configuredApiOrigin;
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
