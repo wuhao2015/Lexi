@@ -43,6 +43,8 @@ def _friendly_translation_error_detail(code: str) -> str:
         return "Translation service returned an empty response. Please try again."
     if code == "parse_failed":
         return "Could not parse translation result. Please try again."
+    if code == "no_available_model":
+        return "No translation model is currently available. Please try again later or update GEMINI_MODELS."
     return "Translation failed. Please try again."
 
 

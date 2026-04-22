@@ -97,24 +97,34 @@ def verify_explanation_gemini(
         'Reply with JSON only, no markdown: {"correct": true or false, "reason": "short phrase"}\n'
         "Mark correct if the explanation captures the same meaning as the reference, even with different wording.\n"
     )
-    try:
-        resp = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config={"temperature": 0.1},
-        )
-    except genai_errors.ClientError as e:
-        if getattr(e, "status_code", None) == 429:
-            raise RuntimeError("verify_429") from e
-        return None
-    except Exception as e:
-        msg = str(e).lower()
-        if "429" in msg or "resource exhausted" in msg:
-            raise RuntimeError("verify_429") from e
+    models = settings.preferred_gemini_models()
+    if not models:
         return None
 
-    text = getattr(resp, "text", None) or ""
-    data = _extract_json_object(text)
-    if not data or "correct" not in data:
-        return None
-    return bool(data["correct"])
+    saw_429 = False
+    for model in models:
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={"temperature": 0.1},
+            )
+            text = getattr(resp, "text", None) or ""
+            data = _extract_json_object(text)
+            if not data or "correct" not in data:
+                continue
+            return bool(data["correct"])
+        except genai_errors.ClientError as e:
+            if getattr(e, "status_code", None) == 429:
+                saw_429 = True
+            # Try the next model on all client errors.
+            continue
+        except Exception as e:
+            msg = str(e).lower()
+            if "429" in msg or "resource exhausted" in msg:
+                saw_429 = True
+            continue
+
+    if saw_429:
+        raise RuntimeError("verify_429")
+    return None

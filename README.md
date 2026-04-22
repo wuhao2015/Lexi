@@ -71,7 +71,8 @@ On the API host, set **`CORS_ORIGINS`** to include your Vercel site URL (for exa
 | Variable | Description |
 |----------|-------------|
 | `GEMINI_API_KEY` | Required for translating new terms (not in global cache) and for Gemini-based review grading when available |
-| `GEMINI_MODEL` | Model id (default `gemini-3-flash-preview`) |
+| `GEMINI_MODEL` | Primary model id (default `gemini-2.5-flash-lite`) |
+| `GEMINI_MODELS` | Comma-separated fallback order; backend tries each model until one responds (default: `gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.5-pro,gemini-3-flash-preview`) |
 | `JWT_SECRET` | Secret for signing JWT access tokens |
 | `GEMINI_DAILY_VERIFY_LIMIT` | Max Gemini verify calls per UTC day; `0` means no limit |
 | `VERIFY_COOLDOWN_SECONDS` | After a verify 429, skip Gemini verify for this many seconds |

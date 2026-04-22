@@ -49,30 +49,53 @@ def call_gemini_translate(term: str, settings: Settings) -> Tuple[str, Optional[
         "Do not add explanations, labels, or markdown.\n\n"
         f"English: {term}\n"
     )
-    try:
-        resp = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config={"temperature": 0.2},
-        )
-    except genai_errors.ClientError as e:
-        status_code = getattr(e, "status_code", None)
-        if status_code == 429:
-            raise TranslationProviderError("rate_limited") from e
-        if status_code == 503:
-            raise TranslationProviderError("service_unavailable") from e
-        raise
-    except Exception as e:
-        msg = str(e).lower()
-        if "429" in msg or "resource exhausted" in msg:
-            raise TranslationProviderError("rate_limited") from e
-        if "503" in msg or "unavailable" in msg or "high demand" in msg:
-            raise TranslationProviderError("service_unavailable") from e
-        raise
-    text = getattr(resp, "text", None) or ""
-    if not text.strip():
-        raise TranslationProviderError("empty_response")
-    return parse_translation_response(text)
+    models = settings.preferred_gemini_models()
+    if not models:
+        raise TranslationProviderError("no_available_model")
+
+    saw_rate_limit = False
+    saw_service_unavailable = False
+
+    for model in models:
+        try:
+            resp = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={"temperature": 0.2},
+            )
+            text = getattr(resp, "text", None) or ""
+            if not text.strip():
+                continue
+            primary, alts = parse_translation_response(text)
+            if primary.strip():
+                return primary, alts
+        except genai_errors.ClientError as e:
+            status_code = getattr(e, "status_code", None)
+            if status_code == 429:
+                saw_rate_limit = True
+                continue
+            if status_code == 503:
+                saw_service_unavailable = True
+                continue
+            # Common for unavailable/unsupported model IDs.
+            if status_code in (400, 404):
+                continue
+            continue
+        except Exception as e:
+            msg = str(e).lower()
+            if "429" in msg or "resource exhausted" in msg:
+                saw_rate_limit = True
+                continue
+            if "503" in msg or "unavailable" in msg or "high demand" in msg:
+                saw_service_unavailable = True
+                continue
+            continue
+
+    if saw_rate_limit:
+        raise TranslationProviderError("rate_limited")
+    if saw_service_unavailable:
+        raise TranslationProviderError("service_unavailable")
+    raise TranslationProviderError("no_available_model")
 
 
 def get_or_create_global_translation(
