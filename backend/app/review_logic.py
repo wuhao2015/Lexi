@@ -3,22 +3,18 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
 
+import langid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db import Vocabulary
-from app.gemini_verify import (
-    can_use_gemini_verify,
-    record_verify_success,
-    set_verify_cooldown,
-    verify_explanation_gemini,
-)
 
 PRIORITY_START = 100
 PRIORITY_MAX = 200
 PRIORITY_DELTA = 35
 
+langid.set_languages(["en", "es", "fr", "pt", "ru", "zh", "ar", "hi", "bn", "ur"])
 
 def _normalize_explanation(s: str) -> str:
     s = s.strip().lower()
@@ -76,9 +72,12 @@ def looks_like_language(text: str, target_lang: str) -> bool:
     if target_lang == "ru":
         return _contains_script(t, r"[\u0400-\u04FF]")
 
-    # For Latin-script languages (en/es/fr/pt), require at least one Latin letter.
+    # For Latin-script languages, use model-based detection to avoid false positives.
     if target_lang in {"en", "es", "fr", "pt"}:
-        return _contains_script(t, r"[A-Za-z]")
+        if not _contains_script(t, r"[A-Za-z]"):
+            return False
+        code, _score = langid.classify(t)
+        return code == target_lang
 
     return True
 
@@ -137,28 +136,9 @@ def grade_review_answer(
         new_priority = apply_review_result(db, row, correct)
         return correct, canonical, grading_mode, new_priority
 
-    use_gemini = can_use_gemini_verify(db, settings)
-    if use_gemini:
-        try:
-            g = verify_explanation_gemini(
-                row.display_term or row.term,
-                primary,
-                alts if isinstance(alts, list) else [],
-                explanation,
-                settings,
-            )
-            if g is not None:
-                correct = g
-                grading_mode = "gemini"
-                record_verify_success(db, settings)
-            else:
-                correct = offline_verify(explanation, primary, alts if isinstance(alts, list) else [])
-        except RuntimeError as e:
-            if str(e) == "verify_429":
-                set_verify_cooldown(db, settings)
-            correct = offline_verify(explanation, primary, alts if isinstance(alts, list) else [])
-    else:
-        correct = offline_verify(explanation, primary, alts if isinstance(alts, list) else [])
+    # Fully local grading path: no network verification calls.
+    correct = offline_verify(explanation, primary, alts if isinstance(alts, list) else [])
+    grading_mode = "offline"
 
     new_priority = apply_review_result(db, row, correct)
     return correct, canonical, grading_mode, new_priority
