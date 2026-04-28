@@ -1,6 +1,8 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.languages import is_supported_language
 
 
 class RegisterIn(BaseModel):
@@ -29,6 +31,14 @@ class LookupIn(BaseModel):
     term: str = Field(min_length=1, max_length=512)
     source_lang: str = "en"
     target_lang: str = "zh"
+
+    @field_validator("source_lang", "target_lang")
+    @classmethod
+    def normalize_lang_code(cls, v: str) -> str:
+        code = v.strip().lower()
+        if not is_supported_language(code):
+            raise ValueError(f"Unsupported language code: {v}")
+        return code
 
 
 class LookupOut(BaseModel):

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db import TranslationCache, Vocabulary, dumps_alt, normalize_term
+from app.languages import language_name
 
 
 class TranslationProviderError(RuntimeError):
@@ -37,17 +38,21 @@ def parse_translation_response(raw: str) -> Tuple[str, Optional[List[str]]]:
     return primary, alts
 
 
-def call_gemini_translate(term: str, settings: Settings) -> Tuple[str, Optional[List[str]]]:
+def call_gemini_translate(
+    term: str, source_lang: str, target_lang: str, settings: Settings
+) -> Tuple[str, Optional[List[str]]]:
     if not settings.gemini_api_key:
         raise TranslationProviderError("missing_api_key")
     client = genai.Client(api_key=settings.gemini_api_key)
+    source_name = language_name(source_lang)
+    target_name = language_name(target_lang)
     prompt = (
-        "Translate the following English word or phrase to Simplified Chinese.\n"
+        f"Translate the following {source_name} word or phrase to {target_name}.\n"
         "Reply with:\n"
         "Line 1: the primary translation only.\n"
         "Line 2 (optional): comma-separated synonyms or alternative glosses.\n"
         "Do not add explanations, labels, or markdown.\n\n"
-        f"English: {term}\n"
+        f"{source_name}: {term}\n"
     )
     models = settings.preferred_gemini_models()
     if not models:
@@ -120,7 +125,7 @@ def get_or_create_global_translation(
     if row is not None and row.primary_translation.strip():
         return row, "global_cache"
 
-    primary, alts = call_gemini_translate(raw_term.strip(), settings)
+    primary, alts = call_gemini_translate(raw_term.strip(), source_lang, target_lang, settings)
     if not primary.strip():
         raise TranslationProviderError("parse_failed")
 

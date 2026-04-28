@@ -17,11 +17,56 @@ type ReviewItem = {
   source_lang: string;
   target_lang: string;
 };
+type Language = { code: string; name: string };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 let user: User | null = null;
 let view: "login" | "register" | "search" | "review" = "login";
+let languages: Language[] = [];
+let sourceLang = "en";
+let targetLang = "zh";
+const PAIR_SOURCE_KEY = "lexi_source_lang";
+const PAIR_TARGET_KEY = "lexi_target_lang";
+
+function initializeLanguagePair(): void {
+  const savedSource = localStorage.getItem(PAIR_SOURCE_KEY);
+  const savedTarget = localStorage.getItem(PAIR_TARGET_KEY);
+  if (savedSource) sourceLang = savedSource;
+  if (savedTarget) targetLang = savedTarget;
+}
+
+function persistLanguagePair(): void {
+  localStorage.setItem(PAIR_SOURCE_KEY, sourceLang);
+  localStorage.setItem(PAIR_TARGET_KEY, targetLang);
+}
+
+async function ensureLanguages(): Promise<void> {
+  if (languages.length) return;
+  try {
+    const res = await api<{ items: Language[] }>("/languages");
+    languages = res.items;
+  } catch {
+    languages = [
+      { code: "en", name: "English" },
+      { code: "zh", name: "Chinese (Mandarin)" },
+      { code: "hi", name: "Hindi" },
+      { code: "es", name: "Spanish" },
+      { code: "fr", name: "French" },
+      { code: "ar", name: "Arabic" },
+      { code: "bn", name: "Bengali" },
+      { code: "pt", name: "Portuguese" },
+      { code: "ru", name: "Russian" },
+      { code: "ur", name: "Urdu" },
+    ];
+  }
+  if (!languages.some((l) => l.code === sourceLang)) sourceLang = "en";
+  if (!languages.some((l) => l.code === targetLang)) targetLang = "zh";
+  if (sourceLang === targetLang && languages.length > 1) {
+    targetLang = languages.find((l) => l.code !== sourceLang)?.code || targetLang;
+  }
+  persistLanguagePair();
+}
 
 async function refreshUser(): Promise<void> {
   if (!getToken()) {
@@ -54,7 +99,7 @@ function layout(content: string): string {
   return `
     <header>
       <h1>Lexi</h1>
-      <p class="subtitle">English → 中文 dictionary & spaced-style review</p>
+      <p class="subtitle">Multilingual dictionary & spaced-style review</p>
       ${nav}
     </header>
     ${content}
@@ -183,10 +228,29 @@ function renderSearch(msg = "", err = ""): void {
     <div class="card">
       <form id="form-lookup">
         <div class="field">
-          <label for="pair">Language pair</label>
-          <select id="pair" disabled>
-            <option selected>English → 中文 (Simplified)</option>
+          <label for="source-lang">Source language</label>
+          <select id="source-lang" name="source_lang">
+            ${languages
+              .map(
+                (l) =>
+                  `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
+              )
+              .join("")}
           </select>
+        </div>
+        <div class="field">
+          <label for="target-lang">Target language</label>
+          <select id="target-lang" name="target_lang">
+            ${languages
+              .map(
+                (l) =>
+                  `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
+              )
+              .join("")}
+          </select>
+        </div>
+        <div class="actions" style="margin:0.5rem 0 0.25rem;">
+          <button type="button" class="secondary" id="btn-swap-langs">Swap languages</button>
         </div>
         <div class="field">
           <label for="term">Word or phrase</label>
@@ -200,16 +264,46 @@ function renderSearch(msg = "", err = ""): void {
     ${result}
   `);
   bindLogout();
+  const sourceSelect = document.getElementById("source-lang") as HTMLSelectElement | null;
+  const targetSelect = document.getElementById("target-lang") as HTMLSelectElement | null;
+  sourceSelect?.addEventListener("change", () => {
+    sourceLang = sourceSelect.value;
+    if (sourceLang === targetLang && languages.length > 1) {
+      targetLang = languages.find((l) => l.code !== sourceLang)?.code || targetLang;
+    }
+    persistLanguagePair();
+    renderSearch(msg, err);
+  });
+  targetSelect?.addEventListener("change", () => {
+    targetLang = targetSelect.value;
+    if (targetLang === sourceLang && languages.length > 1) {
+      sourceLang = languages.find((l) => l.code !== targetLang)?.code || sourceLang;
+    }
+    persistLanguagePair();
+    renderSearch(msg, err);
+  });
+  document.getElementById("btn-swap-langs")?.addEventListener("click", () => {
+    const prevSource = sourceLang;
+    sourceLang = targetLang;
+    targetLang = prevSource;
+    persistLanguagePair();
+    renderSearch(msg, err);
+  });
   document.getElementById("form-lookup")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target as HTMLFormElement);
     const term = String(fd.get("term") || "").trim();
+    const selectedSource = String(fd.get("source_lang") || sourceLang);
+    const selectedTarget = String(fd.get("target_lang") || targetLang);
+    sourceLang = selectedSource;
+    targetLang = selectedTarget;
+    persistLanguagePair();
     const btn = document.getElementById("btn-lookup") as HTMLButtonElement;
     btn.disabled = true;
     try {
       lastLookup = await api<LookupResult>("/lookup", {
         method: "POST",
-        json: { term, source_lang: "en", target_lang: "zh" },
+        json: { term, source_lang: selectedSource, target_lang: selectedTarget },
       });
       renderSearch("", "");
     } catch (err) {
@@ -273,7 +367,7 @@ function renderReview(): void {
       <div class="review-prompt">${escapeHtml(prompt)}</div>
       <form id="form-review">
         <div class="field">
-          <label for="expl">Your explanation (中文 or English)</label>
+          <label for="expl">Your explanation (source or target language)</label>
           <textarea id="expl" name="explanation" required ${fb ? "readonly" : ""}></textarea>
         </div>
         ${
@@ -340,6 +434,7 @@ function escapeHtml(s: string): string {
 }
 
 async function render(): Promise<void> {
+  await ensureLanguages();
   await refreshUser();
   const hash = (window.location.hash || "#login").slice(1).split("?")[0];
 
@@ -374,4 +469,5 @@ window.addEventListener("hashchange", () => {
   render();
 });
 
+initializeLanguagePair();
 render();

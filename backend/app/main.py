@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, get_db, hash_password, verify_password
 from app.config import get_settings
 from app.db import User, init_engine
+from app.languages import is_supported_language, list_languages
 from app.review_logic import grade_review_answer, pick_next_review
 from app.schemas import (
     LoginIn,
@@ -64,6 +65,11 @@ def health():
     return {"ok": True}
 
 
+@api.get("/languages")
+def languages():
+    return {"items": list_languages()}
+
+
 @api.post("/auth/register", response_model=TokenOut)
 def register(body: RegisterIn, db: Session = Depends(get_db)):
     if db.execute(select(User).where(User.username == body.username)).scalar_one_or_none():
@@ -104,6 +110,8 @@ def lookup(
     raw = body.term.strip()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty term")
+    if body.source_lang == body.target_lang:
+        raise HTTPException(status_code=400, detail="Source and target languages must be different")
     try:
         cache, source = get_or_create_global_translation(
             db, raw, body.source_lang, body.target_lang, settings
@@ -132,8 +140,21 @@ def lookup(
 
 
 @api.get("/review/next", response_model=Optional[ReviewItemOut])
-def review_next(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    row = pick_next_review(db, user.id)
+def review_next(
+    source_lang: Optional[str] = Query(default=None),
+    target_lang: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    source = source_lang.strip().lower() if source_lang else None
+    target = target_lang.strip().lower() if target_lang else None
+    if source and not is_supported_language(source):
+        raise HTTPException(status_code=400, detail=f"Unsupported language code: {source_lang}")
+    if target and not is_supported_language(target):
+        raise HTTPException(status_code=400, detail=f"Unsupported language code: {target_lang}")
+    if source and target and source == target:
+        raise HTTPException(status_code=400, detail="Source and target languages must be different")
+    row = pick_next_review(db, user.id, source_lang=source, target_lang=target)
     if row is None:
         return None
     return ReviewItemOut(

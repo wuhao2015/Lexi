@@ -53,13 +53,45 @@ def offline_verify(explanation: str, primary: str, alts: Optional[List[str]]) ->
     return False
 
 
-def pick_next_review(db: Session, user_id: int) -> Optional[Vocabulary]:
-    q = (
-        select(Vocabulary)
-        .where(Vocabulary.user_id == user_id, Vocabulary.priority > 0)
-        .order_by(Vocabulary.priority.desc(), Vocabulary.last_reviewed_at.asc().nulls_first())
-        .limit(1)
-    )
+def _contains_script(text: str, pattern: str) -> bool:
+    return bool(re.search(pattern, text))
+
+
+def looks_like_language(text: str, target_lang: str) -> bool:
+    t = text.strip()
+    if not t:
+        return False
+
+    # Script-based checks for languages with clear scripts.
+    if target_lang == "zh":
+        return _contains_script(t, r"[\u4e00-\u9fff]")
+    if target_lang == "hi":
+        return _contains_script(t, r"[\u0900-\u097F]")
+    if target_lang == "bn":
+        return _contains_script(t, r"[\u0980-\u09FF]")
+    if target_lang == "ar":
+        return _contains_script(t, r"[\u0600-\u06FF]")
+    if target_lang == "ur":
+        return _contains_script(t, r"[\u0600-\u06FF]")
+    if target_lang == "ru":
+        return _contains_script(t, r"[\u0400-\u04FF]")
+
+    # For Latin-script languages (en/es/fr/pt), require at least one Latin letter.
+    if target_lang in {"en", "es", "fr", "pt"}:
+        return _contains_script(t, r"[A-Za-z]")
+
+    return True
+
+
+def pick_next_review(
+    db: Session, user_id: int, source_lang: Optional[str] = None, target_lang: Optional[str] = None
+) -> Optional[Vocabulary]:
+    q = select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.priority > 0)
+    if source_lang:
+        q = q.where(Vocabulary.source_lang == source_lang)
+    if target_lang:
+        q = q.where(Vocabulary.target_lang == target_lang)
+    q = q.order_by(Vocabulary.priority.desc(), Vocabulary.last_reviewed_at.asc().nulls_first()).limit(1)
     return db.execute(q).scalar_one_or_none()
 
 
@@ -98,6 +130,12 @@ def grade_review_answer(
 
     grading_mode = "offline"
     correct: bool
+
+    if not looks_like_language(explanation, row.target_lang):
+        correct = False
+        grading_mode = "language_mismatch"
+        new_priority = apply_review_result(db, row, correct)
+        return correct, canonical, grading_mode, new_priority
 
     use_gemini = can_use_gemini_verify(db, settings)
     if use_gemini:
