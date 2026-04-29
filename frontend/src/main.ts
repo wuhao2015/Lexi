@@ -230,27 +230,29 @@ function renderSearch(msg = "", err = ""): void {
         <p style="margin:0 0 0.75rem;color:var(--muted);font-size:0.9rem;">
           Language pair (auto-detected direction): enter a word in either language.
         </p>
-        <div class="field">
-          <label for="source-lang">Language A</label>
-          <select id="source-lang" name="source_lang">
-            ${languages
-              .map(
-                (l) =>
-                  `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-              )
-              .join("")}
-          </select>
-        </div>
-        <div class="field">
-          <label for="target-lang">Language B</label>
-          <select id="target-lang" name="target_lang">
-            ${languages
-              .map(
-                (l) =>
-                  `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-              )
-              .join("")}
-          </select>
+        <div class="pair-row">
+          <div class="field">
+            <label for="source-lang">Language A</label>
+            <select id="source-lang" name="source_lang">
+              ${languages
+                .map(
+                  (l) =>
+                    `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="target-lang">Language B</label>
+            <select id="target-lang" name="target_lang">
+              ${languages
+                .map(
+                  (l) =>
+                    `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
+                )
+                .join("")}
+            </select>
+          </div>
         </div>
         <div class="field">
           <label for="term">Word or phrase</label>
@@ -366,17 +368,19 @@ function renderReview(): void {
   if (!reviewItem) {
     app.innerHTML = layout(`
       <div class="card empty-state">
-        <div class="field" style="text-align:left;">
-          <label for="review-source-lang">Language A</label>
-          <select id="review-source-lang">
-            ${reviewPairOptions(sourceLang, targetLang)}
-          </select>
-        </div>
-        <div class="field" style="text-align:left;">
-          <label for="review-target-lang">Language B</label>
-          <select id="review-target-lang">
-            ${reviewPairOptions(targetLang, sourceLang)}
-          </select>
+        <div class="pair-row">
+          <div class="field" style="text-align:left;">
+            <label for="review-source-lang">Language A</label>
+            <select id="review-source-lang">
+              ${reviewPairOptions(sourceLang, targetLang)}
+            </select>
+          </div>
+          <div class="field" style="text-align:left;">
+            <label for="review-target-lang">Language B</label>
+            <select id="review-target-lang">
+              ${reviewPairOptions(targetLang, sourceLang)}
+            </select>
+          </div>
         </div>
         <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
           Review works both ways for the selected pair.
@@ -408,17 +412,19 @@ function renderReview(): void {
 
   app.innerHTML = layout(`
     <div class="card">
-      <div class="field">
-        <label for="review-source-lang">Language A</label>
-        <select id="review-source-lang">
-          ${reviewPairOptions(sourceLang, targetLang)}
-        </select>
-      </div>
-      <div class="field">
-        <label for="review-target-lang">Language B</label>
-        <select id="review-target-lang">
-          ${reviewPairOptions(targetLang, sourceLang)}
-        </select>
+      <div class="pair-row">
+        <div class="field">
+          <label for="review-source-lang">Language A</label>
+          <select id="review-source-lang">
+            ${reviewPairOptions(sourceLang, targetLang)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="review-target-lang">Language B</label>
+          <select id="review-target-lang">
+            ${reviewPairOptions(targetLang, sourceLang)}
+          </select>
+        </div>
       </div>
       <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
         Review works both ways for the selected pair.
@@ -427,7 +433,7 @@ function renderReview(): void {
       <div class="review-prompt">${escapeHtml(prompt)}</div>
       <form id="form-review">
         <div class="field">
-          <label for="expl">Your explanation (source or target language)</label>
+          <label for="expl">Your explanation</label>
           <textarea id="expl" name="explanation" required ${fb ? "readonly" : ""}></textarea>
         </div>
         ${

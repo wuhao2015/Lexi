@@ -115,6 +115,16 @@ textarea {
   margin-bottom: 1rem;
 }
 
+.pair-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.pair-row .field {
+  margin-bottom: 0.75rem;
+}
+
 button.primary {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
   color: #041016;
