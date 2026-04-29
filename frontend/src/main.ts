@@ -227,8 +227,11 @@ function renderSearch(msg = "", err = ""): void {
   app.innerHTML = layout(`
     <div class="card">
       <form id="form-lookup">
+        <p style="margin:0 0 0.75rem;color:var(--muted);font-size:0.9rem;">
+          Language pair (auto-detected direction): enter a word in either language.
+        </p>
         <div class="field">
-          <label for="source-lang">Source language</label>
+          <label for="source-lang">Language A</label>
           <select id="source-lang" name="source_lang">
             ${languages
               .map(
@@ -239,7 +242,7 @@ function renderSearch(msg = "", err = ""): void {
           </select>
         </div>
         <div class="field">
-          <label for="target-lang">Target language</label>
+          <label for="target-lang">Language B</label>
           <select id="target-lang" name="target_lang">
             ${languages
               .map(
@@ -248,9 +251,6 @@ function renderSearch(msg = "", err = ""): void {
               )
               .join("")}
           </select>
-        </div>
-        <div class="actions" style="margin:0.5rem 0 0.25rem;">
-          <button type="button" class="secondary" id="btn-swap-langs">Swap languages</button>
         </div>
         <div class="field">
           <label for="term">Word or phrase</label>
@@ -279,13 +279,6 @@ function renderSearch(msg = "", err = ""): void {
     if (targetLang === sourceLang && languages.length > 1) {
       sourceLang = languages.find((l) => l.code !== targetLang)?.code || sourceLang;
     }
-    persistLanguagePair();
-    renderSearch(msg, err);
-  });
-  document.getElementById("btn-swap-langs")?.addEventListener("click", () => {
-    const prevSource = sourceLang;
-    sourceLang = targetLang;
-    targetLang = prevSource;
     persistLanguagePair();
     renderSearch(msg, err);
   });
