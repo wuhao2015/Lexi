@@ -1,12 +1,12 @@
 # Lexi
 
-A small full-stack dictionary web app: **English → 简体中文** lookups (backed by **Gemini** with a **global translation cache**), per-user review queues, and **hybrid grading** (Gemini when quota allows, otherwise offline fuzzy match against the stored gloss).
+A small full-stack dictionary web app with multilingual pair lookups (backed by **Gemini** with a **global translation cache**) and per-user review queues with local grading.
 
 ## Requirements
 
 - Python 3.9+
 - Node.js 18+ (for building the frontend; optional if you only run the API)
-- A [Google AI Studio](https://aistudio.google.com/) API key (`GEMINI_API_KEY`) for live translation on cache miss and for optional Gemini grading during review
+- A [Google AI Studio](https://aistudio.google.com/) API key (`GEMINI_API_KEY`) for live translation on cache miss
 
 ## Backend setup
 
@@ -70,12 +70,10 @@ On the API host, set **`CORS_ORIGINS`** to include your Vercel site URL (for exa
 
 | Variable | Description |
 |----------|-------------|
-| `GEMINI_API_KEY` | Required for translating new terms (not in global cache) and for Gemini-based review grading when available |
+| `GEMINI_API_KEY` | Required for translating new terms (not in global cache) |
 | `GEMINI_MODEL` | Primary model id (default `gemini-2.5-flash-lite`) |
 | `GEMINI_MODELS` | Comma-separated fallback order; backend tries each model until one responds (default: `gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.5-pro,gemini-3-flash-preview`) |
 | `JWT_SECRET` | Secret for signing JWT access tokens |
-| `GEMINI_DAILY_VERIFY_LIMIT` | Max Gemini verify calls per UTC day; `0` means no limit |
-| `VERIFY_COOLDOWN_SECONDS` | After a verify 429, skip Gemini verify for this many seconds |
 | `CORS_ORIGINS` | Comma-separated origins (default includes Vite `http://localhost:5173`) |
 | `DATABASE_URL` | Optional SQLAlchemy URL; default is SQLite under `backend/data/` |
 
@@ -92,14 +90,17 @@ On the API host, set **`CORS_ORIGINS`** to include your Vercel site URL (for exa
 | POST | `/api/auth/register` | No | Create user, returns JWT |
 | POST | `/api/auth/login` | No | Login, returns JWT |
 | GET | `/api/me` | Yes | Current user |
-| POST | `/api/lookup` | Yes | Resolve EN→ZH via `translation_cache` or Gemini; upserts user vocabulary |
-| GET | `/api/review/next` | Yes | Next item with `priority > 0` |
-| POST | `/api/review/answer` | Yes | Grade explanation; returns `grading_mode` (`gemini` or `offline`) |
+| GET | `/api/languages` | No | List supported language options (top 10) |
+| POST | `/api/lookup` | Yes | Resolve selected language pair via `translation_cache` or Gemini; auto-detects direction if input matches the other side |
+| GET | `/api/review/next` | Yes | Next item with `priority > 0` (supports `source_lang` + `target_lang`; pair filter is bidirectional) |
+| POST | `/api/review/answer` | Yes | Grade explanation locally; returns `grading_mode` (`offline` or `language_mismatch`) |
 
 Send `Authorization: Bearer <token>` for authenticated routes.
 
 ## Behaviour notes
 
-- **Global cache**: The same normalized `(term, en, zh)` is shared by all users; Gemini runs only on cache miss.
+- **Global cache**: The same normalized `(term, source_lang, target_lang)` is shared by all users; Gemini runs only on cache miss.
+- **Pair direction**: For a selected pair, lookup auto-detects whether input matches language A or B and translates to the other one.
+- **Review pairs**: Review selection is bidirectional; for pair `(A, B)`, items from both `(A -> B)` and `(B -> A)` can appear.
 - **Review priority**: Higher priority is shown first. Correct answers reduce priority; wrong answers increase it. Items at priority `0` are treated as done for the queue.
 - If `GEMINI_API_KEY` is missing, new terms cannot be translated until you add a row to `translation_cache` or set a key.
