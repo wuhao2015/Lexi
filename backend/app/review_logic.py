@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -51,9 +51,16 @@ def pick_next_review(
     db: Session, user_id: int, source_lang: Optional[str] = None, target_lang: Optional[str] = None
 ) -> Optional[Vocabulary]:
     q = select(Vocabulary).where(Vocabulary.user_id == user_id, Vocabulary.priority > 0)
-    if source_lang:
+    if source_lang and target_lang:
+        q = q.where(
+            or_(
+                (Vocabulary.source_lang == source_lang) & (Vocabulary.target_lang == target_lang),
+                (Vocabulary.source_lang == target_lang) & (Vocabulary.target_lang == source_lang),
+            )
+        )
+    elif source_lang:
         q = q.where(Vocabulary.source_lang == source_lang)
-    if target_lang:
+    elif target_lang:
         q = q.where(Vocabulary.target_lang == target_lang)
     q = q.order_by(Vocabulary.priority.desc(), Vocabulary.last_reviewed_at.asc().nulls_first()).limit(1)
     return db.execute(q).scalar_one_or_none()
@@ -95,15 +102,14 @@ def grade_review_answer(
     grading_mode = "offline"
     correct: bool
 
-    if not looks_like_language(explanation, row.target_lang):
-        correct = False
-        grading_mode = "language_mismatch"
-        new_priority = apply_review_result(db, row, correct)
-        return correct, canonical, grading_mode, new_priority
-
     # Fully local grading path: no network verification calls.
     correct = offline_verify(explanation, primary, alts if isinstance(alts, list) else [])
-    grading_mode = "offline"
+    if correct:
+        grading_mode = "offline"
+    elif not looks_like_language(explanation, row.target_lang):
+        grading_mode = "language_mismatch"
+    else:
+        grading_mode = "offline"
 
     new_priority = apply_review_result(db, row, correct)
     return correct, canonical, grading_mode, new_priority

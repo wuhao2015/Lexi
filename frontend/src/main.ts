@@ -326,36 +326,61 @@ async function loadReview(): Promise<void> {
   }
 }
 
+function reviewPairOptions(selected: string, disallowed: string): string {
+  return languages
+    .map((l) => {
+      const disabled = l.code === disallowed ? "disabled" : "";
+      const selectedAttr = l.code === selected ? "selected" : "";
+      return `<option value="${l.code}" ${selectedAttr} ${disabled}>${escapeHtml(l.name)}</option>`;
+    })
+    .join("");
+}
+
+function bindReviewPairSelectors(): void {
+  const reviewSource = document.getElementById("review-source-lang") as HTMLSelectElement | null;
+  const reviewTarget = document.getElementById("review-target-lang") as HTMLSelectElement | null;
+
+  reviewSource?.addEventListener("change", async () => {
+    sourceLang = reviewSource.value;
+    if (sourceLang === targetLang && languages.length > 1) {
+      targetLang = languages.find((l) => l.code !== sourceLang)?.code || targetLang;
+    }
+    persistLanguagePair();
+    await loadReview();
+    renderReview();
+  });
+
+  reviewTarget?.addEventListener("change", async () => {
+    targetLang = reviewTarget.value;
+    if (targetLang === sourceLang && languages.length > 1) {
+      sourceLang = languages.find((l) => l.code !== targetLang)?.code || sourceLang;
+    }
+    persistLanguagePair();
+    await loadReview();
+    renderReview();
+  });
+}
+
 function renderReview(): void {
   view = "review";
   if (!reviewItem) {
     app.innerHTML = layout(`
       <div class="card empty-state">
         <div class="field" style="text-align:left;">
-          <label for="review-source-lang">Review source language</label>
+          <label for="review-source-lang">Language A</label>
           <select id="review-source-lang">
-            ${languages
-              .map(
-                (l) =>
-                  `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-              )
-              .join("")}
+            ${reviewPairOptions(sourceLang, targetLang)}
           </select>
         </div>
         <div class="field" style="text-align:left;">
-          <label for="review-target-lang">Review target language</label>
+          <label for="review-target-lang">Language B</label>
           <select id="review-target-lang">
-            ${languages
-              .map(
-                (l) =>
-                  `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-              )
-              .join("")}
+            ${reviewPairOptions(targetLang, sourceLang)}
           </select>
         </div>
-        <div class="actions" style="justify-content:center;margin-top:0.25rem;">
-          <button type="button" class="secondary" id="btn-review-swap">Swap languages</button>
-        </div>
+        <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
+          Review works both ways for the selected pair.
+        </p>
         <p>Nothing left to review — great work.</p>
         <p style="margin-top:0.5rem;">Look up new words on the Search page to grow your list.</p>
         <div class="actions" style="justify-content:center;margin-top:1.5rem;">
@@ -365,6 +390,7 @@ function renderReview(): void {
       </div>
     `);
     bindLogout();
+    bindReviewPairSelectors();
     document.getElementById("btn-retry-review")?.addEventListener("click", async () => {
       await loadReview();
       renderReview();
@@ -383,30 +409,20 @@ function renderReview(): void {
   app.innerHTML = layout(`
     <div class="card">
       <div class="field">
-        <label for="review-source-lang">Review source language</label>
+        <label for="review-source-lang">Language A</label>
         <select id="review-source-lang">
-          ${languages
-            .map(
-              (l) =>
-                `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-            )
-            .join("")}
+          ${reviewPairOptions(sourceLang, targetLang)}
         </select>
       </div>
       <div class="field">
-        <label for="review-target-lang">Review target language</label>
+        <label for="review-target-lang">Language B</label>
         <select id="review-target-lang">
-          ${languages
-            .map(
-              (l) =>
-                `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-            )
-            .join("")}
+          ${reviewPairOptions(targetLang, sourceLang)}
         </select>
       </div>
-      <div class="actions" style="margin:0.5rem 0 0.25rem;">
-        <button type="button" class="secondary" id="btn-review-swap">Swap languages</button>
-      </div>
+      <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
+        Review works both ways for the selected pair.
+      </p>
       <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">What does this mean?</p>
       <div class="review-prompt">${escapeHtml(prompt)}</div>
       <form id="form-review">
@@ -432,35 +448,7 @@ function renderReview(): void {
     </div>
   `);
   bindLogout();
-  const reviewSource = document.getElementById("review-source-lang") as HTMLSelectElement | null;
-  const reviewTarget = document.getElementById("review-target-lang") as HTMLSelectElement | null;
-  reviewSource?.addEventListener("change", async () => {
-    sourceLang = reviewSource.value;
-    if (sourceLang === targetLang && languages.length > 1) {
-      targetLang = languages.find((l) => l.code !== sourceLang)?.code || targetLang;
-    }
-    persistLanguagePair();
-    await loadReview();
-    renderReview();
-  });
-  reviewTarget?.addEventListener("change", async () => {
-    targetLang = reviewTarget.value;
-    if (targetLang === sourceLang && languages.length > 1) {
-      sourceLang = languages.find((l) => l.code !== targetLang)?.code || sourceLang;
-    }
-    persistLanguagePair();
-    await loadReview();
-    renderReview();
-  });
-  document.getElementById("btn-review-swap")?.addEventListener("click", async () => {
-    const prevSource = sourceLang;
-    sourceLang = targetLang;
-    targetLang = prevSource;
-    persistLanguagePair();
-    await loadReview();
-    renderReview();
-  });
-
+  bindReviewPairSelectors();
   if (!fb) {
     document.getElementById("form-review")?.addEventListener("submit", async (e) => {
       e.preventDefault();
