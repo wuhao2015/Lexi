@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, get_db, hash_password, verify_password
 from app.config import get_settings
 from app.db import User, init_engine
-from app.languages import is_supported_language, list_languages
+from app.languages import auto_direction_for_pair, is_supported_language, list_languages
 from app.review_logic import grade_review_answer, pick_next_review
 from app.schemas import (
     LoginIn,
@@ -112,9 +112,12 @@ def lookup(
         raise HTTPException(status_code=400, detail="Empty term")
     if body.source_lang == body.target_lang:
         raise HTTPException(status_code=400, detail="Source and target languages must be different")
+    effective_source, effective_target = auto_direction_for_pair(
+        raw, body.source_lang, body.target_lang
+    )
     try:
         cache, source = get_or_create_global_translation(
-            db, raw, body.source_lang, body.target_lang, settings
+            db, raw, effective_source, effective_target, settings
         )
         vocab = upsert_user_vocabulary(db, user.id, raw, cache)
         db.commit()

@@ -3,18 +3,16 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
 
-import langid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db import Vocabulary
+from app.languages import looks_like_language
 
 PRIORITY_START = 100
 PRIORITY_MAX = 200
 PRIORITY_DELTA = 35
-
-langid.set_languages(["en", "es", "fr", "pt", "ru", "zh", "ar", "hi", "bn", "ur"])
 
 def _normalize_explanation(s: str) -> str:
     s = s.strip().lower()
@@ -47,39 +45,6 @@ def offline_verify(explanation: str, primary: str, alts: Optional[List[str]]) ->
         if c_zh and ex_zh and SequenceMatcher(None, ex_zh, c_zh).ratio() >= 0.88:
             return True
     return False
-
-
-def _contains_script(text: str, pattern: str) -> bool:
-    return bool(re.search(pattern, text))
-
-
-def looks_like_language(text: str, target_lang: str) -> bool:
-    t = text.strip()
-    if not t:
-        return False
-
-    # Script-based checks for languages with clear scripts.
-    if target_lang == "zh":
-        return _contains_script(t, r"[\u4e00-\u9fff]")
-    if target_lang == "hi":
-        return _contains_script(t, r"[\u0900-\u097F]")
-    if target_lang == "bn":
-        return _contains_script(t, r"[\u0980-\u09FF]")
-    if target_lang == "ar":
-        return _contains_script(t, r"[\u0600-\u06FF]")
-    if target_lang == "ur":
-        return _contains_script(t, r"[\u0600-\u06FF]")
-    if target_lang == "ru":
-        return _contains_script(t, r"[\u0400-\u04FF]")
-
-    # For Latin-script languages, use model-based detection to avoid false positives.
-    if target_lang in {"en", "es", "fr", "pt"}:
-        if not _contains_script(t, r"[A-Za-z]"):
-            return False
-        code, _score = langid.classify(t)
-        return code == target_lang
-
-    return True
 
 
 def pick_next_review(
