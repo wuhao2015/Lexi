@@ -22,6 +22,12 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Scheduled cache maintenance (runs inside Lexi service process).
+    cache_maintenance_enabled: bool = True
+    cache_maintenance_interval_seconds: int = 60 * 60 * 24  # daily
+    cache_merge_identical_enabled: bool = True
+    cache_conflict_policy: str = "keep_highest_quality_score"
+
     def preferred_gemini_models(self) -> list[str]:
         models = [m.strip() for m in self.gemini_models.split(",") if m.strip()]
         if self.gemini_model and self.gemini_model not in models:

@@ -1,3 +1,5 @@
+import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -12,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_current_user, get_db, hash_password, verify_password
 from app.config import get_settings
+from app.cache_maintenance import CacheMaintenanceWorker
 from app.db import User, init_engine
 from app.languages import auto_direction_for_pair, is_supported_language, list_languages
 from app.review_logic import grade_review_answer, pick_next_review
@@ -49,11 +52,35 @@ def _friendly_translation_error_detail(code: str) -> str:
     return "Translation failed. Please try again."
 
 
+def _configure_app_package_logging() -> None:
+    """Send ``app.*`` logs to stderr so systemd/journald shows them (uvicorn only wires its own loggers)."""
+    log = logging.getLogger("app")
+    if getattr(log, "_lexi_stderr_handler", False):
+        return
+    setattr(log, "_lexi_stderr_handler", True)
+    log.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    log.addHandler(handler)
+    log.propagate = False
+
+
+_configure_app_package_logging()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     init_engine(settings.database_url)
-    yield
+    worker: CacheMaintenanceWorker | None = None
+    if settings.cache_maintenance_enabled:
+        worker = CacheMaintenanceWorker(settings)
+        worker.start()
+    try:
+        yield
+    finally:
+        if worker is not None:
+            worker.stop()
 
 
 # --- API sub-application (mounted at /api) ---

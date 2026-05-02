@@ -76,6 +76,10 @@ On the API host, set **`CORS_ORIGINS`** to include your Vercel site URL (for exa
 | `JWT_SECRET` | Secret for signing JWT access tokens |
 | `CORS_ORIGINS` | Comma-separated origins (default includes Vite `http://localhost:5173`) |
 | `DATABASE_URL` | Optional SQLAlchemy URL; default is SQLite under `backend/data/` |
+| `CACHE_MAINTENANCE_ENABLED` | Enable in-process scheduled cache maintenance worker (default `true`) |
+| `CACHE_MAINTENANCE_INTERVAL_SECONDS` | Maintenance interval in seconds (default `86400`, daily) |
+| `CACHE_MERGE_IDENTICAL_ENABLED` | Enable merge for same normalized `(term, source_lang, target_lang)` groups (default `true`) |
+| `CACHE_CONFLICT_POLICY` | Winner-selection policy when merging cache conflicts (default `keep_highest_quality_score`) |
 
 ### Frontend (Vite) — build-time
 
@@ -103,4 +107,5 @@ Send `Authorization: Bearer <token>` for authenticated routes.
 - **Pair direction**: For a selected pair, lookup auto-detects whether input matches language A or B and translates to the other one.
 - **Review pairs**: Review selection is bidirectional; for pair `(A, B)`, items from both `(A -> B)` and `(B -> A)` can appear.
 - **Review priority**: Higher priority is shown first. Correct answers reduce priority; wrong answers increase it. Items at priority `0` are treated as done for the queue.
+- **Scheduled cache maintenance**: A background worker inside the Lexi service runs periodically to remove bad self-echo cache rows and merge duplicate cache groups.
 - If `GEMINI_API_KEY` is missing, new terms cannot be translated until you add a row to `translation_cache` or set a key.
