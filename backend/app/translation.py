@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.db import TranslationCache, Vocabulary, dumps_alt, normalize_term
 from app.languages import language_name
+from app.review_logic import PRIORITY_MAX, PRIORITY_DELTA
 
 
 class TranslationProviderError(RuntimeError):
@@ -181,6 +182,7 @@ def upsert_user_vocabulary(
         row.display_term = display
         row.primary_translation = cache.primary_translation
         row.alt_translations = cache.alt_translations
+        row.priority = min(PRIORITY_MAX, row.priority + PRIORITY_DELTA)
     db.flush()
     db.refresh(row)
     return row
