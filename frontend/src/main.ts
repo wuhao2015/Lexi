@@ -227,33 +227,10 @@ function renderSearch(msg = "", err = ""): void {
   app.innerHTML = layout(`
     <div class="card">
       <form id="form-lookup">
-        <p style="margin:0 0 0.75rem;color:var(--muted);font-size:0.9rem;">
-          Language pair (auto-detected direction): enter a word in either language.
+        ${renderLearningLanguageLine("target-lang", "source-lang")}
+        <p class="learning-subhint">
+          Enter a word or phrase in either language; we pick translation direction when it is obvious.
         </p>
-        <div class="pair-row">
-          <div class="field">
-            <label for="source-lang">Language A</label>
-            <select id="source-lang" name="source_lang">
-              ${languages
-                .map(
-                  (l) =>
-                    `<option value="${l.code}" ${l.code === sourceLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-          <div class="field">
-            <label for="target-lang">Language B</label>
-            <select id="target-lang" name="target_lang">
-              ${languages
-                .map(
-                  (l) =>
-                    `<option value="${l.code}" ${l.code === targetLang ? "selected" : ""}>${escapeHtml(l.name)}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-        </div>
         <div class="field">
           <label for="term">Word or phrase</label>
           <input id="term" name="term" type="text" placeholder="e.g. ephemeral" required />
@@ -328,16 +305,6 @@ async function loadReview(): Promise<void> {
   }
 }
 
-function reviewPairOptions(selected: string, disallowed: string): string {
-  return languages
-    .map((l) => {
-      const disabled = l.code === disallowed ? "disabled" : "";
-      const selectedAttr = l.code === selected ? "selected" : "";
-      return `<option value="${l.code}" ${selectedAttr} ${disabled}>${escapeHtml(l.name)}</option>`;
-    })
-    .join("");
-}
-
 function bindReviewPairSelectors(): void {
   const reviewSource = document.getElementById("review-source-lang") as HTMLSelectElement | null;
   const reviewTarget = document.getElementById("review-target-lang") as HTMLSelectElement | null;
@@ -368,22 +335,11 @@ function renderReview(): void {
   if (!reviewItem) {
     app.innerHTML = layout(`
       <div class="card empty-state">
-        <div class="pair-row">
-          <div class="field" style="text-align:left;">
-            <label for="review-source-lang">Language A</label>
-            <select id="review-source-lang">
-              ${reviewPairOptions(sourceLang, targetLang)}
-            </select>
-          </div>
-          <div class="field" style="text-align:left;">
-            <label for="review-target-lang">Language B</label>
-            <select id="review-target-lang">
-              ${reviewPairOptions(targetLang, sourceLang)}
-            </select>
-          </div>
+        <div class="learning-line-wrap" style="text-align:left;">
+          ${renderLearningLanguageLine("review-target-lang", "review-source-lang", { formNames: false, pairFilter: true })}
         </div>
-        <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
-          Review works both ways for the selected pair.
+        <p class="learning-subhint" style="text-align:left;">
+          Review uses the same pair; cards may ask you in either direction.
         </p>
         <p>Nothing left to review — great work.</p>
         <p style="margin-top:0.5rem;">Look up new words on the Search page to grow your list.</p>
@@ -412,23 +368,8 @@ function renderReview(): void {
 
   app.innerHTML = layout(`
     <div class="card">
-      <div class="pair-row">
-        <div class="field">
-          <label for="review-source-lang">Language A</label>
-          <select id="review-source-lang">
-            ${reviewPairOptions(sourceLang, targetLang)}
-          </select>
-        </div>
-        <div class="field">
-          <label for="review-target-lang">Language B</label>
-          <select id="review-target-lang">
-            ${reviewPairOptions(targetLang, sourceLang)}
-          </select>
-        </div>
-      </div>
-      <p style="margin:0.25rem 0 0.75rem;color:var(--muted);font-size:0.9rem;">
-        Review works both ways for the selected pair.
-      </p>
+      ${renderLearningLanguageLine("review-target-lang", "review-source-lang", { formNames: false, pairFilter: true })}
+      <p class="learning-subhint">Review uses the same pair; answer in the language of the prompt.</p>
       <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">What does this mean?</p>
       <div class="review-prompt">${escapeHtml(prompt)}</div>
       <form id="form-review">
@@ -497,6 +438,40 @@ function escapeHtml(s: string): string {
   const d = document.createElement("div");
   d.textContent = s;
   return d.innerHTML;
+}
+
+/** Inline selects: learning *target* with *source* (matches API source_lang / target_lang). */
+function renderLearningLanguageLine(
+  targetSelectId: string,
+  sourceSelectId: string,
+  opts: { formNames?: boolean; pairFilter?: boolean } = {}
+): string {
+  const formNames = opts.formNames !== false;
+  const pairFilter = opts.pairFilter === true;
+  const nameTarget = formNames ? ' name="target_lang"' : "";
+  const nameSource = formNames ? ' name="source_lang"' : "";
+  const targetOpts = languages
+    .map((l) => {
+      const sel = l.code === targetLang ? "selected" : "";
+      const dis = pairFilter && l.code === sourceLang ? "disabled" : "";
+      return `<option value="${l.code}" ${sel} ${dis}>${escapeHtml(l.name)}</option>`;
+    })
+    .join("");
+  const sourceOpts = languages
+    .map((l) => {
+      const sel = l.code === sourceLang ? "selected" : "";
+      const dis = pairFilter && l.code === targetLang ? "disabled" : "";
+      return `<option value="${l.code}" ${sel} ${dis}>${escapeHtml(l.name)}</option>`;
+    })
+    .join("");
+  return `
+    <p class="learning-line" role="group" aria-label="Languages you are studying">
+      <span class="learning-line-part">I'm learning</span>
+      <select id="${targetSelectId}"${nameTarget} aria-label="Language you are learning">${targetOpts}</select>
+      <span class="learning-line-part">with</span>
+      <select id="${sourceSelectId}"${nameSource} aria-label="Language you are learning with">${sourceOpts}</select>
+      <span class="learning-line-part">.</span>
+    </p>`;
 }
 
 async function render(): Promise<void> {
