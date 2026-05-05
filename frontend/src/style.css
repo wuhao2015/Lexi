@@ -228,6 +228,22 @@ button.secondary:hover {
   margin-bottom: 0.75rem;
 }
 
+.result-extra {
+  margin: 0.5rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.result-extra-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
 .review-prompt {
   font-size: 1.5rem;
   font-weight: 600;

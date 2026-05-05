@@ -70,13 +70,20 @@ def looks_like_language(text: str, code: str) -> bool:
     return True
 
 
-def auto_direction_for_pair(text: str, source_lang: str, target_lang: str) -> tuple[str, str]:
+def auto_direction_for_pair(
+    text: str, user_speaks_lang: str, user_learning_lang: str
+) -> tuple[str, str]:
     """
-    If input text clearly matches target_lang (and not source_lang), flip direction.
-    Otherwise keep user-selected direction.
+    Choose (translate_from, translate_to) for a single lookup call to the translator.
+
+    ``user_speaks_lang`` / ``user_learning_lang`` are fixed UI meanings (language you use
+    vs language you study) and must **not** be swapped when persisting rows.
+
+    If the typed text clearly matches the learning language and not the spoken one,
+    translate learning → spoken; otherwise translate spoken → learning.
     """
-    is_source = looks_like_language(text, source_lang)
-    is_target = looks_like_language(text, target_lang)
-    if is_target and not is_source:
-        return target_lang, source_lang
-    return source_lang, target_lang
+    is_spoken = looks_like_language(text, user_speaks_lang)
+    is_learning = looks_like_language(text, user_learning_lang)
+    if is_learning and not is_spoken:
+        return user_learning_lang, user_speaks_lang
+    return user_speaks_lang, user_learning_lang

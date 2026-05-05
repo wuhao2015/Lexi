@@ -46,6 +46,9 @@ class LookupOut(BaseModel):
     display_term: str
     primary_translation: str
     alt_translations: Optional[List[str]] = None
+    translation_explanation: Optional[str] = None
+    example_sentence: Optional[str] = None
+    lemma: Optional[str] = None
     translation_source: str  # global_cache | gemini
     vocabulary_id: int
 

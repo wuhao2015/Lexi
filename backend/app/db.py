@@ -14,6 +14,8 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     func,
+    inspect,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
@@ -45,6 +47,9 @@ class TranslationCache(Base):
     target_lang: Mapped[str] = mapped_column(String(16), nullable=False)
     primary_translation: Mapped[str] = mapped_column(Text, nullable=False)
     alt_translations: Mapped[Optional[List[Any]]] = mapped_column(JSON, nullable=True)
+    translation_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    example_sentence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lemma: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -64,6 +69,9 @@ class Vocabulary(Base):
     target_lang: Mapped[str] = mapped_column(String(16), nullable=False)
     primary_translation: Mapped[str] = mapped_column(Text, nullable=False, default="")
     alt_translations: Mapped[Optional[List[Any]]] = mapped_column(JSON, nullable=True)
+    translation_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    example_sentence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lemma: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -104,11 +112,32 @@ _engine = None
 SessionLocal = None
 
 
+def _add_column_if_missing(engine, table: str, column: str, col_type_sql: str) -> None:
+    """Add column on existing DBs (create_all does not alter legacy tables)."""
+    insp = inspect(engine)
+    if not insp.has_table(table):
+        return
+    existing = {c["name"] for c in insp.get_columns(table)}
+    if column in existing:
+        return
+    quoted = f'"{table}"' if str(engine.url).startswith("sqlite") else table
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {quoted} ADD COLUMN {column} {col_type_sql}"))
+
+
+def _ensure_translation_extra_columns(engine) -> None:
+    for table in ("translation_cache", "vocabulary"):
+        _add_column_if_missing(engine, table, "translation_explanation", "TEXT")
+        _add_column_if_missing(engine, table, "example_sentence", "TEXT")
+        _add_column_if_missing(engine, table, "lemma", "TEXT")
+
+
 def init_engine(database_url: Optional[str] = None):
     global _engine, SessionLocal
     _engine = make_engine(database_url)
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False, expire_on_commit=False)
     Base.metadata.create_all(bind=_engine)
+    _ensure_translation_extra_columns(_engine)
     _ensure_quota_row()
 
 

@@ -7,6 +7,9 @@ type LookupResult = {
   display_term: string;
   primary_translation: string;
   alt_translations: string[] | null;
+  translation_explanation?: string | null;
+  example_sentence?: string | null;
+  lemma?: string | null;
   translation_source: string;
   vocabulary_id: number;
 };
@@ -218,6 +221,21 @@ function renderSearch(msg = "", err = ""): void {
       ${
         lastLookup.alt_translations?.length
           ? `<p style="color:var(--muted);font-size:0.9rem;">Also: ${escapeHtml(lastLookup.alt_translations.join(" · "))}</p>`
+          : ""
+      }
+      ${
+        lastLookup.lemma?.trim()
+          ? `<p class="result-extra"><span class="result-extra-label">Lemma</span> ${escapeHtml(lastLookup.lemma.trim())}</p>`
+          : ""
+      }
+      ${
+        lastLookup.translation_explanation?.trim()
+          ? `<p class="result-extra"><span class="result-extra-label">Explanation</span> ${escapeHtml(lastLookup.translation_explanation.trim())}</p>`
+          : ""
+      }
+      ${
+        lastLookup.example_sentence?.trim()
+          ? `<p class="result-extra"><span class="result-extra-label">Example</span> ${escapeHtml(lastLookup.example_sentence.trim())}</p>`
           : ""
       }
       <p style="color:var(--muted);font-size:0.85rem;">Saved to your review list.</p>

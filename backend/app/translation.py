@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db import TranslationCache, Vocabulary, dumps_alt, normalize_term
-from app.languages import language_name
+from app.languages import auto_direction_for_pair, language_name
 from app.review_logic import PRIORITY_MAX, PRIORITY_DELTA
 
 
@@ -26,34 +26,53 @@ def _strip_code_fences(text: str) -> str:
     return t.strip()
 
 
-def parse_translation_response(raw: str) -> Tuple[str, Optional[List[str]]]:
+def parse_translation_response(
+    raw: str,
+) -> Tuple[str, Optional[List[str]], str, str, str]:
+    """
+    Five lines (padded): primary, explanation, example, lemma, optional comma-separated alts.
+
+    Glosses are last so a skipped optional line does not shift the fixed fields.
+    """
     text = _strip_code_fences(raw)
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    if not lines:
-        return "", None
-    primary = lines[0]
-    alts = None
-    if len(lines) > 1:
-        parts = [p.strip() for p in lines[1].split(",") if p.strip()]
+    lines = [ln.strip() for ln in text.splitlines()][:5]
+    while len(lines) < 5:
+        lines.append("")
+    primary, explanation, example, lemma, alts_line = lines
+    alts: Optional[List[str]] = None
+    if alts_line:
+        parts = [p.strip() for p in alts_line.split(",") if p.strip()]
         alts = parts or None
-    return primary, alts
+    return primary, alts, explanation.strip(), example.strip(), lemma.strip()
 
 
 def call_gemini_translate(
-    term: str, source_lang: str, target_lang: str, settings: Settings
-) -> Tuple[str, Optional[List[str]]]:
+    term: str,
+    translate_from: str,
+    translate_to: str,
+    settings: Settings,
+    *,
+    learning_lang: str,
+    known_lang: str,
+) -> Tuple[str, Optional[List[str]], str, str, str]:
     if not settings.gemini_api_key:
         raise TranslationProviderError("missing_api_key")
     client = genai.Client(api_key=settings.gemini_api_key)
-    source_name = language_name(source_lang)
-    target_name = language_name(target_lang)
+    from_name = language_name(translate_from)
+    to_name = language_name(translate_to)
+    learning_name = language_name(learning_lang)
+    known_name = language_name(known_lang)
     prompt = (
-        f"Translate the following {source_name} word or phrase to {target_name}.\n"
-        "Reply with:\n"
-        "Line 1: the primary translation only.\n"
-        "Line 2 (optional): comma-separated synonyms or alternative glosses.\n"
-        "Do not add explanations, labels, or markdown.\n\n"
-        f"{source_name}: {term}\n"
+        f"Translate the following {from_name} word or phrase to {to_name}.\n"
+        "Reply with exactly these lines in order:\n"
+        f"Line 1: the primary translation only.\n"
+        f"Line 2: explanation in {known_name} of the translation.\n"
+        f"Line 3: one natural example sentence written in {learning_name} "
+        f"Line 4: dictionary headword (lemma) of the expression in {learning_name}.\n"
+        f"Line 5 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
+        "or leave this line blank if none.\n"
+        "Do not add labels or markdown.\n\n"
+        f"{from_name}: {term}\n"
     )
     models = settings.preferred_gemini_models()
     if not models:
@@ -72,9 +91,9 @@ def call_gemini_translate(
             text = getattr(resp, "text", None) or ""
             if not text.strip():
                 continue
-            primary, alts = parse_translation_response(text)
+            primary, alts, explanation, example, lemma = parse_translation_response(text)
             if primary.strip():
-                return primary, alts
+                return primary, alts, explanation, example, lemma
         except genai_errors.ClientError as e:
             status_code = getattr(e, "status_code", None)
             if status_code == 429:
@@ -107,10 +126,14 @@ def call_gemini_translate(
 def get_or_create_global_translation(
     db: Session,
     raw_term: str,
-    source_lang: str,
-    target_lang: str,
+    user_speaks_lang: str,
+    user_learning_lang: str,
     settings: Settings,
 ) -> tuple[TranslationCache, Literal["global_cache", "gemini"]]:
+    """
+    ``user_speaks_lang`` / ``user_learning_lang`` match the UI (with / learning) and are
+    always how rows are stored. Auto-direction only affects the Gemini translate step.
+    """
     term = normalize_term(raw_term)
     if not term:
         raise ValueError("Empty term")
@@ -118,31 +141,47 @@ def get_or_create_global_translation(
     row = db.execute(
         select(TranslationCache).where(
             TranslationCache.term == term,
-            TranslationCache.source_lang == source_lang,
-            TranslationCache.target_lang == target_lang,
+            TranslationCache.source_lang == user_speaks_lang,
+            TranslationCache.target_lang == user_learning_lang,
         )
     ).scalar_one_or_none()
 
     if row is not None and row.primary_translation.strip():
         return row, "global_cache"
 
-    primary, alts = call_gemini_translate(raw_term.strip(), source_lang, target_lang, settings)
+    translate_from, translate_to = auto_direction_for_pair(
+        raw_term, user_speaks_lang, user_learning_lang
+    )
+    primary, alts, explanation, example, lemma = call_gemini_translate(
+        raw_term.strip(),
+        translate_from,
+        translate_to,
+        settings,
+        learning_lang=user_learning_lang,
+        known_lang=user_speaks_lang,
+    )
     if not primary.strip():
         raise TranslationProviderError("parse_failed")
 
     if row is None:
         row = TranslationCache(
             term=term,
-            source_lang=source_lang,
-            target_lang=target_lang,
+            source_lang=user_speaks_lang,
+            target_lang=user_learning_lang,
             primary_translation=primary.strip(),
             alt_translations=dumps_alt(alts),
+            translation_explanation=explanation or None,
+            example_sentence=example or None,
+            lemma=lemma or None,
         )
         db.add(row)
         db.flush()
     else:
         row.primary_translation = primary.strip()
         row.alt_translations = dumps_alt(alts)
+        row.translation_explanation = explanation or None
+        row.example_sentence = example or None
+        row.lemma = lemma or None
         db.flush()
 
     return row, "gemini"
@@ -175,6 +214,9 @@ def upsert_user_vocabulary(
             target_lang=cache.target_lang,
             primary_translation=cache.primary_translation,
             alt_translations=cache.alt_translations,
+            translation_explanation=cache.translation_explanation,
+            example_sentence=cache.example_sentence,
+            lemma=cache.lemma,
             priority=100,
         )
         db.add(row)
@@ -182,6 +224,9 @@ def upsert_user_vocabulary(
         row.display_term = display
         row.primary_translation = cache.primary_translation
         row.alt_translations = cache.alt_translations
+        row.translation_explanation = cache.translation_explanation
+        row.example_sentence = cache.example_sentence
+        row.lemma = cache.lemma
         row.priority = min(PRIORITY_MAX, row.priority + PRIORITY_DELTA)
     db.flush()
     db.refresh(row)

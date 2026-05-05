@@ -58,12 +58,17 @@ def _is_bad_cache_row(row: TranslationCache) -> bool:
     return _normalized_text(row.term) == _normalized_primary(row.primary_translation)
 
 
-def _quality_tuple(row: TranslationCache) -> tuple[int, int, int, int, float]:
+def _quality_tuple(row: TranslationCache) -> tuple[int, int, int, int, int, float]:
     primary = (row.primary_translation or "").strip()
     has_primary = 1 if primary else 0
     script_match = 1 if primary and looks_like_language(primary, row.target_lang) else 0
     alt_count = len(_merged_alts(row.alt_translations) or [])
     primary_len = len(primary)
+    extras = sum(
+        1
+        for v in (row.translation_explanation, row.example_sentence, row.lemma)
+        if v and str(v).strip()
+    )
     updated_ts = (
         row.updated_at.replace(tzinfo=timezone.utc).timestamp()
         if isinstance(row.updated_at, datetime) and row.updated_at.tzinfo is None
@@ -71,7 +76,7 @@ def _quality_tuple(row: TranslationCache) -> tuple[int, int, int, int, float]:
         if isinstance(row.updated_at, datetime)
         else 0.0
     )
-    return (has_primary, script_match, alt_count, primary_len, updated_ts)
+    return (has_primary, script_match, alt_count, primary_len, extras, updated_ts)
 
 
 def _pick_winner(rows: list[TranslationCache], settings: Settings) -> TranslationCache:
@@ -126,6 +131,9 @@ def _repoint_vocabulary_rows(
                 target.display_term = row.display_term
             target.primary_translation = winner.primary_translation
             target.alt_translations = _merged_alts(target.alt_translations, winner.alt_translations)
+            target.translation_explanation = winner.translation_explanation
+            target.example_sentence = winner.example_sentence
+            target.lemma = winner.lemma
             db.delete(row)
             summary.vocab_merged += 1
         else:
@@ -134,6 +142,9 @@ def _repoint_vocabulary_rows(
             row.target_lang = winner.target_lang
             row.primary_translation = winner.primary_translation
             row.alt_translations = _merged_alts(row.alt_translations, winner.alt_translations)
+            row.translation_explanation = winner.translation_explanation
+            row.example_sentence = winner.example_sentence
+            row.lemma = winner.lemma
             summary.vocab_repointed += 1
 
 
