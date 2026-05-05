@@ -187,12 +187,17 @@ def review_next(
     row = pick_next_review(db, user.id, source_lang=source, target_lang=target)
     if row is None:
         return None
+    alts = row.alt_translations if isinstance(row.alt_translations, list) else None
     return ReviewItemOut(
         id=row.id,
         term=row.term,
         display_term=row.display_term,
         source_lang=row.source_lang,
         target_lang=row.target_lang,
+        alt_translations=alts,
+        translation_explanation=row.translation_explanation,
+        example_sentence=row.example_sentence,
+        lemma=row.lemma,
     )
 
 

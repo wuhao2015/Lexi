@@ -19,6 +19,10 @@ type ReviewItem = {
   display_term: string | null;
   source_lang: string;
   target_lang: string;
+  alt_translations?: string[] | null;
+  translation_explanation?: string | null;
+  example_sentence?: string | null;
+  lemma?: string | null;
 };
 type Language = { code: string; name: string };
 
@@ -218,26 +222,7 @@ function renderSearch(msg = "", err = ""): void {
     <div class="card">
       <div class="result-term">${escapeHtml(lastLookup.display_term)} ${badge}</div>
       <div class="result-zh">${escapeHtml(lastLookup.primary_translation)}</div>
-      ${
-        lastLookup.alt_translations?.length
-          ? `<p style="color:var(--muted);font-size:0.9rem;">Also: ${escapeHtml(lastLookup.alt_translations.join(" · "))}</p>`
-          : ""
-      }
-      ${
-        lastLookup.lemma?.trim()
-          ? `<p class="result-extra"><span class="result-extra-label">Lemma</span> ${escapeHtml(lastLookup.lemma.trim())}</p>`
-          : ""
-      }
-      ${
-        lastLookup.translation_explanation?.trim()
-          ? `<p class="result-extra"><span class="result-extra-label">Explanation</span> ${escapeHtml(lastLookup.translation_explanation.trim())}</p>`
-          : ""
-      }
-      ${
-        lastLookup.example_sentence?.trim()
-          ? `<p class="result-extra"><span class="result-extra-label">Example</span> ${escapeHtml(lastLookup.example_sentence.trim())}</p>`
-          : ""
-      }
+      ${renderTermSupplements(lastLookup)}
       <p style="color:var(--muted);font-size:0.85rem;">Saved to your review list.</p>
     </div>`
     : "";
@@ -403,6 +388,7 @@ function renderReview(): void {
           ${fb.grading_mode === "offline" ? ' <span class="badge">Graded offline</span>' : ""}
           <p style="margin:0.5rem 0 0;">Answer: ${escapeHtml(fb.canonical_answer)}</p>
           <p style="margin:0.35rem 0 0;color:var(--muted);font-size:0.85rem;">Priority now: ${fb.new_priority}</p>
+          ${renderReviewFeedbackExtras(reviewItem)}
         </div>
         <div class="actions">
           <button type="button" class="primary" id="btn-next">Next</button>
@@ -456,6 +442,37 @@ function escapeHtml(s: string): string {
   const d = document.createElement("div");
   d.textContent = s;
   return d.innerHTML;
+}
+
+/** Lemma, explanation, example, alt glosses — same layout as search results. */
+function renderTermSupplements(x: {
+  alt_translations?: string[] | null;
+  lemma?: string | null;
+  translation_explanation?: string | null;
+  example_sentence?: string | null;
+}): string {
+  const alts = x.alt_translations?.filter((s) => s?.trim()) ?? [];
+  return [
+    alts.length
+      ? `<p style="color:var(--muted);font-size:0.9rem;">Also: ${escapeHtml(alts.join(" · "))}</p>`
+      : "",
+    x.lemma?.trim()
+      ? `<p class="result-extra"><span class="result-extra-label">Lemma</span> ${escapeHtml(x.lemma.trim())}</p>`
+      : "",
+    x.translation_explanation?.trim()
+      ? `<p class="result-extra"><span class="result-extra-label">Explanation</span> ${escapeHtml(x.translation_explanation.trim())}</p>`
+      : "",
+    x.example_sentence?.trim()
+      ? `<p class="result-extra"><span class="result-extra-label">Example</span> ${escapeHtml(x.example_sentence.trim())}</p>`
+      : "",
+  ].join("");
+}
+
+/** Shown after grading only; empty if no saved metadata. */
+function renderReviewFeedbackExtras(item: ReviewItem): string {
+  const inner = renderTermSupplements(item);
+  if (!inner.trim()) return "";
+  return `<div class="review-feedback-extras">${inner}</div>`;
 }
 
 /** Inline selects: learning *target* with *source* (matches API source_lang / target_lang). */

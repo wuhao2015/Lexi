@@ -59,6 +59,10 @@ class ReviewItemOut(BaseModel):
     display_term: Optional[str]
     source_lang: str
     target_lang: str
+    alt_translations: Optional[List[str]] = None
+    translation_explanation: Optional[str] = None
+    example_sentence: Optional[str] = None
+    lemma: Optional[str] = None
 
 
 class ReviewAnswerIn(BaseModel):

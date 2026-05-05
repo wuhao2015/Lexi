@@ -268,6 +268,12 @@ button.secondary:hover {
   background: rgba(240, 113, 120, 0.08);
 }
 
+.review-feedback-extras {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
 .empty-state {
   text-align: center;
   color: var(--muted);
