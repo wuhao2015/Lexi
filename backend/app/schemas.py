@@ -49,6 +49,8 @@ class LookupOut(BaseModel):
     translation_explanation: Optional[str] = None
     example_sentence: Optional[str] = None
     lemma: Optional[str] = None
+    term_pronunciation: Optional[str] = None
+    translation_pronunciation: Optional[str] = None
     translation_source: str  # global_cache | gemini
     vocabulary_id: int
 
@@ -63,6 +65,8 @@ class ReviewItemOut(BaseModel):
     translation_explanation: Optional[str] = None
     example_sentence: Optional[str] = None
     lemma: Optional[str] = None
+    term_pronunciation: Optional[str] = None
+    translation_pronunciation: Optional[str] = None
 
 
 class ReviewAnswerIn(BaseModel):

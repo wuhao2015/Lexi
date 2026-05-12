@@ -28,22 +28,29 @@ def _strip_code_fences(text: str) -> str:
 
 def parse_translation_response(
     raw: str,
-) -> Tuple[str, Optional[List[str]], str, str, str]:
+) -> Tuple[str, Optional[List[str]], str, str, str, str, str]:
     """
-    Five lines (padded): primary, explanation, example, lemma, optional comma-separated alts.
-
-    Glosses are last so a skipped optional line does not shift the fixed fields.
+    Seven lines (padded): primary, optional comma-separated alts, explanation, example,
+    lemma, term pronunciation, translation pronunciation.
     """
     text = _strip_code_fences(raw)
-    lines = [ln.strip() for ln in text.splitlines()][:5]
-    while len(lines) < 5:
+    lines = [ln.strip() for ln in text.splitlines()][:7]
+    while len(lines) < 7:
         lines.append("")
-    primary, explanation, example, lemma, alts_line = lines
+    primary, alts_line, explanation, example, lemma, term_pron, trans_pron = lines
     alts: Optional[List[str]] = None
     if alts_line:
         parts = [p.strip() for p in alts_line.split(",") if p.strip()]
         alts = parts or None
-    return primary, alts, explanation.strip(), example.strip(), lemma.strip()
+    return (
+        primary,
+        alts,
+        explanation.strip(),
+        example.strip(),
+        lemma.strip(),
+        term_pron.strip(),
+        trans_pron.strip(),
+    )
 
 
 def call_gemini_translate(
@@ -54,7 +61,7 @@ def call_gemini_translate(
     *,
     learning_lang: str,
     known_lang: str,
-) -> Tuple[str, Optional[List[str]], str, str, str]:
+) -> Tuple[str, Optional[List[str]], str, str, str, str, str]:
     if not settings.gemini_api_key:
         raise TranslationProviderError("missing_api_key")
     client = genai.Client(api_key=settings.gemini_api_key)
@@ -64,13 +71,15 @@ def call_gemini_translate(
     known_name = language_name(known_lang)
     prompt = (
         f"Translate the following {from_name} word or phrase to {to_name}.\n"
-        "Reply with exactly these lines in order:\n"
+        "Reply with:\n"
         f"Line 1: the primary translation only.\n"
-        f"Line 2: explanation in {known_name} of the translation.\n"
-        f"Line 3: one natural example sentence written in {learning_name} "
-        f"Line 4: dictionary headword (lemma) of the expression in {learning_name}.\n"
-        f"Line 5 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
+        f"Line 2 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
         "or leave this line blank if none.\n"
+        f"Line 3: explanation in {known_name}.\n"
+        f"Line 4: an example sentence in {learning_name}.\n"
+        f"Line 5: lemma in {learning_name}.\n"
+        f"Line 6: how to pronunce the term.\n"
+        f"Line 7: how to pronunce the translation.\n"
         "Do not add labels or markdown.\n\n"
         f"{from_name}: {term}\n"
     )
@@ -91,9 +100,25 @@ def call_gemini_translate(
             text = getattr(resp, "text", None) or ""
             if not text.strip():
                 continue
-            primary, alts, explanation, example, lemma = parse_translation_response(text)
+            (
+                primary,
+                alts,
+                explanation,
+                example,
+                lemma,
+                term_pronunciation,
+                translation_pronunciation,
+            ) = parse_translation_response(text)
             if primary.strip():
-                return primary, alts, explanation, example, lemma
+                return (
+                    primary,
+                    alts,
+                    explanation,
+                    example,
+                    lemma,
+                    term_pronunciation,
+                    translation_pronunciation,
+                )
         except genai_errors.ClientError as e:
             status_code = getattr(e, "status_code", None)
             if status_code == 429:
@@ -152,7 +177,15 @@ def get_or_create_global_translation(
     translate_from, translate_to = auto_direction_for_pair(
         raw_term, user_speaks_lang, user_learning_lang
     )
-    primary, alts, explanation, example, lemma = call_gemini_translate(
+    (
+        primary,
+        alts,
+        explanation,
+        example,
+        lemma,
+        term_pronunciation,
+        translation_pronunciation,
+    ) = call_gemini_translate(
         raw_term.strip(),
         translate_from,
         translate_to,
@@ -173,6 +206,8 @@ def get_or_create_global_translation(
             translation_explanation=explanation or None,
             example_sentence=example or None,
             lemma=lemma or None,
+            term_pronunciation=term_pronunciation or None,
+            translation_pronunciation=translation_pronunciation or None,
         )
         db.add(row)
         db.flush()
@@ -182,6 +217,8 @@ def get_or_create_global_translation(
         row.translation_explanation = explanation or None
         row.example_sentence = example or None
         row.lemma = lemma or None
+        row.term_pronunciation = term_pronunciation or None
+        row.translation_pronunciation = translation_pronunciation or None
         db.flush()
 
     return row, "gemini"
@@ -217,6 +254,8 @@ def upsert_user_vocabulary(
             translation_explanation=cache.translation_explanation,
             example_sentence=cache.example_sentence,
             lemma=cache.lemma,
+            term_pronunciation=cache.term_pronunciation,
+            translation_pronunciation=cache.translation_pronunciation,
             priority=100,
         )
         db.add(row)
@@ -227,6 +266,8 @@ def upsert_user_vocabulary(
         row.translation_explanation = cache.translation_explanation
         row.example_sentence = cache.example_sentence
         row.lemma = cache.lemma
+        row.term_pronunciation = cache.term_pronunciation
+        row.translation_pronunciation = cache.translation_pronunciation
         row.priority = min(PRIORITY_MAX, row.priority + PRIORITY_DELTA)
     db.flush()
     db.refresh(row)

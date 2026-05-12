@@ -66,7 +66,13 @@ def _quality_tuple(row: TranslationCache) -> tuple[int, int, int, int, int, floa
     primary_len = len(primary)
     extras = sum(
         1
-        for v in (row.translation_explanation, row.example_sentence, row.lemma)
+        for v in (
+            row.translation_explanation,
+            row.example_sentence,
+            row.lemma,
+            row.term_pronunciation,
+            row.translation_pronunciation,
+        )
         if v and str(v).strip()
     )
     updated_ts = (
@@ -134,6 +140,8 @@ def _repoint_vocabulary_rows(
             target.translation_explanation = winner.translation_explanation
             target.example_sentence = winner.example_sentence
             target.lemma = winner.lemma
+            target.term_pronunciation = winner.term_pronunciation
+            target.translation_pronunciation = winner.translation_pronunciation
             db.delete(row)
             summary.vocab_merged += 1
         else:
@@ -145,6 +153,8 @@ def _repoint_vocabulary_rows(
             row.translation_explanation = winner.translation_explanation
             row.example_sentence = winner.example_sentence
             row.lemma = winner.lemma
+            row.term_pronunciation = winner.term_pronunciation
+            row.translation_pronunciation = winner.translation_pronunciation
             summary.vocab_repointed += 1
 
 

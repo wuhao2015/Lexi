@@ -50,6 +50,8 @@ class TranslationCache(Base):
     translation_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     example_sentence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     lemma: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    term_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    translation_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
@@ -72,6 +74,8 @@ class Vocabulary(Base):
     translation_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     example_sentence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     lemma: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    term_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    translation_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -130,6 +134,8 @@ def _ensure_translation_extra_columns(engine) -> None:
         _add_column_if_missing(engine, table, "translation_explanation", "TEXT")
         _add_column_if_missing(engine, table, "example_sentence", "TEXT")
         _add_column_if_missing(engine, table, "lemma", "TEXT")
+        _add_column_if_missing(engine, table, "term_pronunciation", "TEXT")
+        _add_column_if_missing(engine, table, "translation_pronunciation", "TEXT")
 
 
 def init_engine(database_url: Optional[str] = None):

@@ -10,6 +10,8 @@ type LookupResult = {
   translation_explanation?: string | null;
   example_sentence?: string | null;
   lemma?: string | null;
+  term_pronunciation?: string | null;
+  translation_pronunciation?: string | null;
   translation_source: string;
   vocabulary_id: number;
 };
@@ -23,6 +25,8 @@ type ReviewItem = {
   translation_explanation?: string | null;
   example_sentence?: string | null;
   lemma?: string | null;
+  term_pronunciation?: string | null;
+  translation_pronunciation?: string | null;
 };
 type Language = { code: string; name: string };
 
@@ -220,8 +224,8 @@ function renderSearch(msg = "", err = ""): void {
   const result = lastLookup
     ? `
     <div class="card">
-      <div class="result-term">${escapeHtml(lastLookup.display_term)} ${badge}</div>
-      <div class="result-zh">${escapeHtml(lastLookup.primary_translation)}</div>
+      <div class="result-term">${escapeHtml(lastLookup.display_term)}${formatSlashPronunciation(lastLookup.term_pronunciation)}${badge ? ` ${badge}` : ""}</div>
+      <div class="result-zh">${escapeHtml(lastLookup.primary_translation)}${formatSlashPronunciation(lastLookup.translation_pronunciation)}</div>
       ${renderTermSupplements(lastLookup)}
       <p style="color:var(--muted);font-size:0.85rem;">Saved to your review list.</p>
     </div>`
@@ -374,7 +378,7 @@ function renderReview(): void {
       ${renderLearningLanguageLine("review-target-lang", "review-source-lang", { formNames: false, pairFilter: true })}
       <p class="learning-subhint">Review uses the same pair; answer in the language of the prompt.</p>
       <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">What does this mean?</p>
-      <div class="review-prompt">${escapeHtml(prompt)}</div>
+      <div class="review-prompt">${escapeHtml(prompt)}${formatSlashPronunciation(reviewItem.term_pronunciation)}</div>
       <form id="form-review">
         <div class="field">
           <label for="expl">Your explanation</label>
@@ -386,7 +390,7 @@ function renderReview(): void {
         <div class="feedback ${fb.correct ? "ok" : "bad"}">
           <strong>${fb.correct ? "Correct" : "Not quite"}</strong>
           ${fb.grading_mode === "offline" ? ' <span class="badge">Graded offline</span>' : ""}
-          <p style="margin:0.5rem 0 0;">Answer: ${escapeHtml(fb.canonical_answer)}</p>
+          <p style="margin:0.5rem 0 0;">Answer: ${escapeHtml(fb.canonical_answer)}${formatSlashPronunciation(reviewItem.translation_pronunciation)}</p>
           <p style="margin:0.35rem 0 0;color:var(--muted);font-size:0.85rem;">Priority now: ${fb.new_priority}</p>
           ${renderReviewFeedbackExtras(reviewItem)}
         </div>
@@ -442,6 +446,13 @@ function escapeHtml(s: string): string {
   const d = document.createElement("div");
   d.textContent = s;
   return d.innerHTML;
+}
+
+/** Inline IPA-style guide, e.g. ` /həˈloʊ/`; empty if missing. */
+function formatSlashPronunciation(p: string | null | undefined): string {
+  const t = p?.trim();
+  if (!t) return "";
+  return ` /${escapeHtml(t)}/`;
 }
 
 /** Lemma, explanation, example, alt glosses — same layout as search results. */

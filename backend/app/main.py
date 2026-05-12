@@ -164,6 +164,8 @@ def lookup(
         translation_explanation=vocab.translation_explanation,
         example_sentence=vocab.example_sentence,
         lemma=vocab.lemma,
+        term_pronunciation=vocab.term_pronunciation,
+        translation_pronunciation=vocab.translation_pronunciation,
         translation_source=source,
         vocabulary_id=vocab.id,
     )
@@ -198,6 +200,8 @@ def review_next(
         translation_explanation=row.translation_explanation,
         example_sentence=row.example_sentence,
         lemma=row.lemma,
+        term_pronunciation=row.term_pronunciation,
+        translation_pronunciation=row.translation_pronunciation,
     )
 
 
