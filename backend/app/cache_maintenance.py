@@ -135,26 +135,14 @@ def _repoint_vocabulary_rows(
                 target.last_reviewed_at = row.last_reviewed_at
             if not target.display_term and row.display_term:
                 target.display_term = row.display_term
-            target.primary_translation = winner.primary_translation
-            target.alt_translations = _merged_alts(target.alt_translations, winner.alt_translations)
-            target.translation_explanation = winner.translation_explanation
-            target.example_sentence = winner.example_sentence
-            target.lemma = winner.lemma
-            target.term_pronunciation = winner.term_pronunciation
-            target.translation_pronunciation = winner.translation_pronunciation
+            target.cache_id = winner.id
             db.delete(row)
             summary.vocab_merged += 1
         else:
             row.term = winner.term
             row.source_lang = winner.source_lang
             row.target_lang = winner.target_lang
-            row.primary_translation = winner.primary_translation
-            row.alt_translations = _merged_alts(row.alt_translations, winner.alt_translations)
-            row.translation_explanation = winner.translation_explanation
-            row.example_sentence = winner.example_sentence
-            row.lemma = winner.lemma
-            row.term_pronunciation = winner.term_pronunciation
-            row.translation_pronunciation = winner.translation_pronunciation
+            row.cache_id = winner.id
             summary.vocab_repointed += 1
 
 

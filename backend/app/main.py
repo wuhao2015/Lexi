@@ -161,11 +161,11 @@ def lookup(
         display_term=vocab.display_term or raw,
         primary_translation=cache.primary_translation,
         alt_translations=alts,
-        translation_explanation=vocab.translation_explanation,
-        example_sentence=vocab.example_sentence,
-        lemma=vocab.lemma,
-        term_pronunciation=vocab.term_pronunciation,
-        translation_pronunciation=vocab.translation_pronunciation,
+        translation_explanation=cache.translation_explanation,
+        example_sentence=cache.example_sentence,
+        lemma=cache.lemma,
+        term_pronunciation=cache.term_pronunciation,
+        translation_pronunciation=cache.translation_pronunciation,
         translation_source=source,
         vocabulary_id=vocab.id,
     )
@@ -189,7 +189,8 @@ def review_next(
     row = pick_next_review(db, user.id, source_lang=source, target_lang=target)
     if row is None:
         return None
-    alts = row.alt_translations if isinstance(row.alt_translations, list) else None
+    c = row.cache
+    alts = (c.alt_translations if isinstance(c.alt_translations, list) else None) if c else None
     return ReviewItemOut(
         id=row.id,
         term=row.term,
@@ -197,11 +198,11 @@ def review_next(
         source_lang=row.source_lang,
         target_lang=row.target_lang,
         alt_translations=alts,
-        translation_explanation=row.translation_explanation,
-        example_sentence=row.example_sentence,
-        lemma=row.lemma,
-        term_pronunciation=row.term_pronunciation,
-        translation_pronunciation=row.translation_pronunciation,
+        translation_explanation=c.translation_explanation if c else None,
+        example_sentence=c.example_sentence if c else None,
+        lemma=c.lemma if c else None,
+        term_pronunciation=c.term_pronunciation if c else None,
+        translation_pronunciation=c.translation_pronunciation if c else None,
     )
 
 

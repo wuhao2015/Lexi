@@ -65,17 +65,13 @@ class Vocabulary(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    cache_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("translation_cache.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     term: Mapped[str] = mapped_column(String(512), nullable=False)
     display_term: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     source_lang: Mapped[str] = mapped_column(String(16), nullable=False)
     target_lang: Mapped[str] = mapped_column(String(16), nullable=False)
-    primary_translation: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    alt_translations: Mapped[Optional[List[Any]]] = mapped_column(JSON, nullable=True)
-    translation_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    example_sentence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    lemma: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    term_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    translation_pronunciation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -85,6 +81,7 @@ class Vocabulary(Base):
     times_wrong: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     user: Mapped["User"] = relationship(back_populates="vocabulary")
+    cache: Mapped[Optional["TranslationCache"]] = relationship(lazy="select")
 
 
 class QuotaState(Base):
@@ -130,12 +127,19 @@ def _add_column_if_missing(engine, table: str, column: str, col_type_sql: str) -
 
 
 def _ensure_translation_extra_columns(engine) -> None:
-    for table in ("translation_cache", "vocabulary"):
-        _add_column_if_missing(engine, table, "translation_explanation", "TEXT")
-        _add_column_if_missing(engine, table, "example_sentence", "TEXT")
-        _add_column_if_missing(engine, table, "lemma", "TEXT")
-        _add_column_if_missing(engine, table, "term_pronunciation", "TEXT")
-        _add_column_if_missing(engine, table, "translation_pronunciation", "TEXT")
+    """Patch translation_cache for DBs created before these columns existed."""
+    for col in ("translation_explanation", "example_sentence", "lemma", "term_pronunciation", "translation_pronunciation"):
+        _add_column_if_missing(engine, "translation_cache", col, "TEXT")
+
+
+def _ensure_vocab_cache_id_column(engine) -> None:
+    """Add cache_id FK to vocabulary for DBs created before this column existed."""
+    _add_column_if_missing(
+        engine,
+        "vocabulary",
+        "cache_id",
+        "INTEGER REFERENCES translation_cache(id) ON DELETE SET NULL",
+    )
 
 
 def init_engine(database_url: Optional[str] = None):
@@ -144,6 +148,7 @@ def init_engine(database_url: Optional[str] = None):
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False, expire_on_commit=False)
     Base.metadata.create_all(bind=_engine)
     _ensure_translation_extra_columns(_engine)
+    _ensure_vocab_cache_id_column(_engine)
     _ensure_quota_row()
 
 

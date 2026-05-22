@@ -75,7 +75,7 @@ def call_gemini_translate(
         f"Line 1: the primary translation only.\n"
         f"Line 2 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
         "or leave this line blank if none.\n"
-        f"Line 3: explanation in {known_name}.\n"
+        f"Line 3: brief explanation of the word's meaning and usage, written entirely in {known_name} — do NOT use {to_name} for this line.\n"
         f"Line 4: an example sentence in {learning_name}.\n"
         f"Line 5: lemma in {learning_name}.\n"
         f"Line 6: how to pronunce the term.\n"
@@ -249,25 +249,13 @@ def upsert_user_vocabulary(
             display_term=display,
             source_lang=cache.source_lang,
             target_lang=cache.target_lang,
-            primary_translation=cache.primary_translation,
-            alt_translations=cache.alt_translations,
-            translation_explanation=cache.translation_explanation,
-            example_sentence=cache.example_sentence,
-            lemma=cache.lemma,
-            term_pronunciation=cache.term_pronunciation,
-            translation_pronunciation=cache.translation_pronunciation,
+            cache_id=cache.id,
             priority=100,
         )
         db.add(row)
     else:
         row.display_term = display
-        row.primary_translation = cache.primary_translation
-        row.alt_translations = cache.alt_translations
-        row.translation_explanation = cache.translation_explanation
-        row.example_sentence = cache.example_sentence
-        row.lemma = cache.lemma
-        row.term_pronunciation = cache.term_pronunciation
-        row.translation_pronunciation = cache.translation_pronunciation
+        row.cache_id = cache.id
         row.priority = min(PRIORITY_MAX, row.priority + PRIORITY_DELTA)
     db.flush()
     db.refresh(row)

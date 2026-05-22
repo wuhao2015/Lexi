@@ -43,8 +43,7 @@ class CacheMaintenanceTests(unittest.TestCase):
                 display_term="neutral",
                 source_lang="zh",
                 target_lang="en",
-                primary_translation="neutral",
-                alt_translations=None,
+                cache_id=cache.id,
                 priority=100,
             )
         )
@@ -120,8 +119,7 @@ class CacheMaintenanceTests(unittest.TestCase):
                 display_term="图片编辑",
                 source_lang="zh",
                 target_lang="en",
-                primary_translation="Edit Photos",
-                alt_translations=["image editing"],
+                cache_id=loser.id,
                 priority=120,
             )
         )
@@ -139,7 +137,7 @@ class CacheMaintenanceTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         vocab = self.session.query(Vocabulary).one()
         self.assertEqual(vocab.term, rows[0].term)
-        self.assertEqual(vocab.primary_translation, rows[0].primary_translation)
+        self.assertEqual(vocab.cache_id, rows[0].id)
 
 
 if __name__ == "__main__":

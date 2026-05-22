@@ -95,8 +95,8 @@ def grade_review_answer(
     if row is None or row.user_id != user_id:
         raise ValueError("not_found")
 
-    primary = row.primary_translation or ""
-    alts = row.alt_translations or []
+    primary = (row.cache.primary_translation if row.cache else "") or ""
+    alts = (row.cache.alt_translations if row.cache else []) or []
     canonical = primary
 
     grading_mode = "offline"
