@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     gemini_daily_verify_limit: int = 0  # 0 = no proactive cap
     verify_cooldown_seconds: int = 3600
+    gemini_log_raw_response: bool = False  # log full Gemini text to stderr/journald
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

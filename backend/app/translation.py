@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import List, Literal, Optional, Tuple
 
@@ -10,6 +11,8 @@ from app.config import Settings
 from app.db import TranslationCache, Vocabulary, dumps_alt, normalize_term
 from app.languages import auto_direction_for_pair, language_name
 from app.review_logic import PRIORITY_MAX, PRIORITY_DELTA
+
+logger = logging.getLogger(__name__)
 
 
 class TranslationProviderError(RuntimeError):
@@ -75,7 +78,7 @@ def call_gemini_translate(
         f"Line 1: the primary translation only.\n"
         f"Line 2 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
         "or leave this line blank if none.\n"
-        f"Line 3: brief explanation of the word's meaning and usage, written entirely in {known_name} — do NOT use {to_name} for this line.\n"
+        f"Line 3: explanation in {known_name} — do NOT use {learning_name} for this line.\n"
         f"Line 4: an example sentence in {learning_name}.\n"
         f"Line 5: lemma in {learning_name}.\n"
         f"Line 6: how to pronunce the term.\n"
@@ -100,6 +103,15 @@ def call_gemini_translate(
             text = getattr(resp, "text", None) or ""
             if not text.strip():
                 continue
+            if settings.gemini_log_raw_response:
+                logger.info(
+                    "gemini_raw_response model=%s term=%r from=%s to=%s\n%s",
+                    model,
+                    term,
+                    translate_from,
+                    translate_to,
+                    text,
+                )
             (
                 primary,
                 alts,
@@ -156,27 +168,30 @@ def get_or_create_global_translation(
     settings: Settings,
 ) -> tuple[TranslationCache, Literal["global_cache", "gemini"]]:
     """
-    ``user_speaks_lang`` / ``user_learning_lang`` match the UI (with / learning) and are
-    always how rows are stored. Auto-direction only affects the Gemini translate step.
+    ``user_speaks_lang`` / ``user_learning_lang`` come from the UI study pair (with / learning).
+
+    ``TranslationCache`` rows are keyed by the real languages of the term and translation
+    (``source_lang`` = language of ``term``, ``target_lang`` = language of ``primary_translation``),
+    not by the user's study-pair labels.
     """
     term = normalize_term(raw_term)
     if not term:
         raise ValueError("Empty term")
 
+    translate_from, translate_to = auto_direction_for_pair(
+        raw_term, user_speaks_lang, user_learning_lang
+    )
+
     row = db.execute(
         select(TranslationCache).where(
             TranslationCache.term == term,
-            TranslationCache.source_lang == user_speaks_lang,
-            TranslationCache.target_lang == user_learning_lang,
+            TranslationCache.source_lang == translate_from,
+            TranslationCache.target_lang == translate_to,
         )
     ).scalar_one_or_none()
 
     if row is not None and row.primary_translation.strip():
         return row, "global_cache"
-
-    translate_from, translate_to = auto_direction_for_pair(
-        raw_term, user_speaks_lang, user_learning_lang
-    )
     (
         primary,
         alts,
@@ -199,8 +214,8 @@ def get_or_create_global_translation(
     if row is None:
         row = TranslationCache(
             term=term,
-            source_lang=user_speaks_lang,
-            target_lang=user_learning_lang,
+            source_lang=translate_from,
+            target_lang=translate_to,
             primary_translation=primary.strip(),
             alt_translations=dumps_alt(alts),
             translation_explanation=explanation or None,
@@ -224,11 +239,36 @@ def get_or_create_global_translation(
     return row, "gemini"
 
 
+def ensure_vocabulary_translation(
+    db: Session,
+    vocab: Vocabulary,
+    settings: Settings,
+) -> TranslationCache:
+    """Return translation cache for a vocabulary row, fetching via Gemini if missing."""
+    if vocab.cache is not None and (vocab.cache.primary_translation or "").strip():
+        return vocab.cache
+
+    raw = (vocab.display_term or vocab.term).strip()
+    cache, _source = get_or_create_global_translation(
+        db,
+        raw,
+        vocab.source_lang,
+        vocab.target_lang,
+        settings,
+    )
+    vocab.cache_id = cache.id
+    db.flush()
+    db.refresh(vocab)
+    return cache
+
+
 def upsert_user_vocabulary(
     db: Session,
     user_id: int,
     raw_term: str,
     cache: TranslationCache,
+    user_speaks_lang: str,
+    user_learning_lang: str,
 ) -> Vocabulary:
     term = cache.term
     display = raw_term.strip() if raw_term.strip() else term
@@ -237,8 +277,8 @@ def upsert_user_vocabulary(
         select(Vocabulary).where(
             Vocabulary.user_id == user_id,
             Vocabulary.term == term,
-            Vocabulary.source_lang == cache.source_lang,
-            Vocabulary.target_lang == cache.target_lang,
+            Vocabulary.source_lang == user_speaks_lang,
+            Vocabulary.target_lang == user_learning_lang,
         )
     ).scalar_one_or_none()
 
@@ -247,8 +287,8 @@ def upsert_user_vocabulary(
             user_id=user_id,
             term=term,
             display_term=display,
-            source_lang=cache.source_lang,
-            target_lang=cache.target_lang,
+            source_lang=user_speaks_lang,
+            target_lang=user_learning_lang,
             cache_id=cache.id,
             priority=100,
         )

@@ -31,6 +31,7 @@ from app.schemas import (
 )
 from app.translation import (
     TranslationProviderError,
+    ensure_vocabulary_translation,
     get_or_create_global_translation,
     upsert_user_vocabulary,
 )
@@ -143,7 +144,9 @@ def lookup(
         cache, source = get_or_create_global_translation(
             db, raw, body.source_lang, body.target_lang, settings
         )
-        vocab = upsert_user_vocabulary(db, user.id, raw, cache)
+        vocab = upsert_user_vocabulary(
+            db, user.id, raw, cache, body.source_lang, body.target_lang
+        )
         db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -189,8 +192,15 @@ def review_next(
     row = pick_next_review(db, user.id, source_lang=source, target_lang=target)
     if row is None:
         return None
-    c = row.cache
-    alts = (c.alt_translations if isinstance(c.alt_translations, list) else None) if c else None
+    settings = get_settings()
+    try:
+        cache = ensure_vocabulary_translation(db, row, settings)
+        db.commit()
+    except TranslationProviderError as e:
+        db.rollback()
+        detail = _friendly_translation_error_detail(e.code)
+        raise HTTPException(status_code=502, detail=detail) from e
+    alts = cache.alt_translations if isinstance(cache.alt_translations, list) else None
     return ReviewItemOut(
         id=row.id,
         term=row.term,
@@ -198,11 +208,11 @@ def review_next(
         source_lang=row.source_lang,
         target_lang=row.target_lang,
         alt_translations=alts,
-        translation_explanation=c.translation_explanation if c else None,
-        example_sentence=c.example_sentence if c else None,
-        lemma=c.lemma if c else None,
-        term_pronunciation=c.term_pronunciation if c else None,
-        translation_pronunciation=c.translation_pronunciation if c else None,
+        translation_explanation=cache.translation_explanation,
+        example_sentence=cache.example_sentence,
+        lemma=cache.lemma,
+        term_pronunciation=cache.term_pronunciation,
+        translation_pronunciation=cache.translation_pronunciation,
     )
 
 
@@ -218,6 +228,10 @@ def review_answer(
             db, user.id, body.id, body.explanation, settings
         )
         db.commit()
+    except TranslationProviderError as e:
+        db.rollback()
+        detail = _friendly_translation_error_detail(e.code)
+        raise HTTPException(status_code=502, detail=detail) from e
     except ValueError as e:
         if str(e) == "not_found":
             raise HTTPException(status_code=404, detail="Vocabulary item not found") from e
