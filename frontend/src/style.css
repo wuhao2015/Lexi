@@ -41,7 +41,13 @@ h1 {
 .subtitle {
   color: var(--muted);
   font-size: 0.95rem;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.user-greeting {
+  margin: 0 0 1.25rem;
+  font-size: 1rem;
+  color: var(--text);
 }
 
 nav {

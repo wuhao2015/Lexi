@@ -99,6 +99,9 @@ function navLink(href: string, label: string, active: boolean): string {
 
 function layout(content: string): string {
   const authed = !!user;
+  const greeting = authed
+    ? `<p class="user-greeting">Hi, ${escapeHtml(user!.username)}</p>`
+    : "";
   const nav = authed
     ? `
     <nav>
@@ -111,6 +114,7 @@ function layout(content: string): string {
     <header>
       <h1>Lexi</h1>
       <p class="subtitle">Multilingual dictionary & spaced-style review</p>
+      ${greeting}
       ${nav}
     </header>
     ${content}
