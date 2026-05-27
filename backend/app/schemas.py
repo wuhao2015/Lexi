@@ -79,3 +79,13 @@ class ReviewAnswerOut(BaseModel):
     canonical_answer: str
     grading_mode: str  # gemini | offline
     new_priority: int
+
+
+class RefreshTranslationOut(BaseModel):
+    primary_translation: str
+    alt_translations: Optional[List[str]] = None
+    translation_explanation: Optional[str] = None
+    example_sentence: Optional[str] = None
+    lemma: Optional[str] = None
+    term_pronunciation: Optional[str] = None
+    translation_pronunciation: Optional[str] = None

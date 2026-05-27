@@ -15,13 +15,14 @@ from sqlalchemy.orm import Session
 from app.auth import create_access_token, get_current_user, get_db, hash_password, verify_password
 from app.config import get_settings
 from app.cache_maintenance import CacheMaintenanceWorker
-from app.db import User, init_engine
+from app.db import TranslationCache, User, Vocabulary, init_engine
 from app.languages import is_supported_language, list_languages
 from app.review_logic import delete_user_vocabulary, grade_review_answer, pick_next_review
 from app.schemas import (
     LoginIn,
     LookupIn,
     LookupOut,
+    RefreshTranslationOut,
     RegisterIn,
     ReviewAnswerIn,
     ReviewAnswerOut,
@@ -230,6 +231,46 @@ def delete_vocabulary(
         if str(e) == "not_found":
             raise HTTPException(status_code=404, detail="Vocabulary item not found") from e
         raise
+
+
+@api.post("/vocabulary/{vocab_id}/refresh-translation", response_model=RefreshTranslationOut)
+def refresh_translation(
+    vocab_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    vocab = db.get(Vocabulary, vocab_id)
+    if vocab is None or vocab.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Vocabulary item not found")
+
+    # Drop the existing cache row so ensure_vocabulary_translation fetches a fresh one.
+    old_cache_id = vocab.cache_id
+    vocab.cache_id = None
+    db.flush()
+    if old_cache_id is not None:
+        old_cache = db.get(TranslationCache, old_cache_id)
+        if old_cache is not None:
+            db.delete(old_cache)
+            db.flush()
+
+    settings = get_settings()
+    try:
+        cache = ensure_vocabulary_translation(db, vocab, settings)
+        db.commit()
+    except TranslationProviderError as e:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=_friendly_translation_error_detail(e.code)) from e
+
+    alts = cache.alt_translations if isinstance(cache.alt_translations, list) else None
+    return RefreshTranslationOut(
+        primary_translation=cache.primary_translation,
+        alt_translations=alts,
+        translation_explanation=cache.translation_explanation,
+        example_sentence=cache.example_sentence,
+        lemma=cache.lemma,
+        term_pronunciation=cache.term_pronunciation,
+        translation_pronunciation=cache.translation_pronunciation,
+    )
 
 
 @api.post("/review/answer", response_model=ReviewAnswerOut)

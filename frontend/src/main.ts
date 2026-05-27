@@ -216,7 +216,6 @@ function renderRegister(msg = ""): void {
 }
 
 let lastLookup: LookupResult | null = null;
-let lastLookupRemovedFromList = false;
 
 async function deleteVocabularyItem(id: number): Promise<void> {
   await api(`/vocabulary/${id}`, { method: "DELETE" });
@@ -236,14 +235,10 @@ function renderSearch(msg = "", err = ""): void {
       <div class="result-term">${escapeHtml(lastLookup.display_term)}${formatSlashPronunciation(lastLookup.term_pronunciation)}${badge ? ` ${badge}` : ""}</div>
       <div class="result-zh">${escapeHtml(lastLookup.primary_translation)}${formatSlashPronunciation(lastLookup.translation_pronunciation)}</div>
       ${renderTermSupplements(lastLookup)}
-      ${
-        lastLookupRemovedFromList
-          ? `<p style="color:var(--muted);font-size:0.85rem;">Removed from your review list.</p>`
-          : `<div class="actions" style="margin-top:1rem;margin-bottom:0;">
+      <div class="actions" style="margin-top:1rem;margin-bottom:0;">
         <p style="color:var(--muted);font-size:0.85rem;margin:0;flex:1;">Saved to your review list.</p>
-        <button type="button" class="secondary" id="btn-remove-lookup">Remove from list</button>
-      </div>`
-      }
+        <button type="button" class="secondary" id="btn-refresh-lookup">Refresh</button>
+      </div>
     </div>`
     : "";
 
@@ -300,7 +295,6 @@ function renderSearch(msg = "", err = ""): void {
         method: "POST",
         json: { term, source_lang: selectedSource, target_lang: selectedTarget },
       });
-      lastLookupRemovedFromList = false;
       renderSearch("", "");
     } catch (err) {
       lastLookup = null;
@@ -309,15 +303,27 @@ function renderSearch(msg = "", err = ""): void {
       btn.disabled = false;
     }
   });
-  document.getElementById("btn-remove-lookup")?.addEventListener("click", async () => {
-    if (!lastLookup || lastLookupRemovedFromList) return;
-    if (!confirm("Remove this word from your review list?")) return;
+  document.getElementById("btn-refresh-lookup")?.addEventListener("click", async () => {
+    if (!lastLookup) return;
+    const btn = document.getElementById("btn-refresh-lookup") as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = "Refreshing…";
     try {
-      await deleteVocabularyItem(lastLookup.vocabulary_id);
-      lastLookupRemovedFromList = true;
+      const fresh = await api<{
+        primary_translation: string;
+        alt_translations: string[] | null;
+        translation_explanation?: string | null;
+        example_sentence?: string | null;
+        lemma?: string | null;
+        term_pronunciation?: string | null;
+        translation_pronunciation?: string | null;
+      }>(`/vocabulary/${lastLookup.vocabulary_id}/refresh-translation`, { method: "POST" });
+      lastLookup = { ...lastLookup, ...fresh, translation_source: "gemini" };
       renderSearch("", "");
     } catch (err) {
-      alert(err instanceof ApiError ? err.detail : "Failed to remove");
+      btn.disabled = false;
+      btn.textContent = "Refresh";
+      alert(err instanceof ApiError ? err.detail : "Failed to refresh translation");
     }
   });
 }
@@ -426,6 +432,7 @@ function renderReview(): void {
           ${renderReviewFeedbackExtras(reviewItem)}
         </div>
         <div class="actions">
+          <button type="button" class="secondary" id="btn-refresh-review">Refresh</button>
           <button type="button" class="primary" id="btn-next">Next</button>
         </div>`
             : `<button type="submit" class="primary" id="btn-submit-review">Submit</button>`
@@ -467,6 +474,30 @@ function renderReview(): void {
       }
     });
   } else {
+    document.getElementById("btn-refresh-review")?.addEventListener("click", async () => {
+      if (!reviewItem || !reviewFeedback) return;
+      const btn = document.getElementById("btn-refresh-review") as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = "Refreshing…";
+      try {
+        const fresh = await api<{
+          primary_translation: string;
+          alt_translations: string[] | null;
+          translation_explanation?: string | null;
+          example_sentence?: string | null;
+          lemma?: string | null;
+          term_pronunciation?: string | null;
+          translation_pronunciation?: string | null;
+        }>(`/vocabulary/${reviewItem.id}/refresh-translation`, { method: "POST" });
+        reviewItem = { ...reviewItem, ...fresh };
+        reviewFeedback = { ...reviewFeedback, canonical_answer: fresh.primary_translation };
+        renderReview();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Refresh";
+        alert(err instanceof ApiError ? err.detail : "Failed to refresh translation");
+      }
+    });
     document.getElementById("btn-next")?.addEventListener("click", async () => {
       await loadReview();
       renderReview();
@@ -479,7 +510,6 @@ function bindLogout(): void {
     clearToken();
     user = null;
     lastLookup = null;
-    lastLookupRemovedFromList = false;
     window.location.hash = "#login";
     render();
   });
