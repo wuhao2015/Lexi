@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.cache_maintenance import CacheMaintenanceWorker
 from app.db import User, init_engine
 from app.languages import is_supported_language, list_languages
-from app.review_logic import grade_review_answer, pick_next_review
+from app.review_logic import delete_user_vocabulary, grade_review_answer, pick_next_review
 from app.schemas import (
     LoginIn,
     LookupIn,
@@ -214,6 +214,22 @@ def review_next(
         term_pronunciation=cache.term_pronunciation,
         translation_pronunciation=cache.translation_pronunciation,
     )
+
+
+@api.delete("/vocabulary/{vocab_id}", status_code=204)
+def delete_vocabulary(
+    vocab_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        delete_user_vocabulary(db, user.id, vocab_id)
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        if str(e) == "not_found":
+            raise HTTPException(status_code=404, detail="Vocabulary item not found") from e
+        raise
 
 
 @api.post("/review/answer", response_model=ReviewAnswerOut)

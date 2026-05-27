@@ -47,6 +47,13 @@ def offline_verify(explanation: str, primary: str, alts: Optional[List[str]]) ->
     return False
 
 
+def delete_user_vocabulary(db: Session, user_id: int, vocab_id: int) -> None:
+    row = db.get(Vocabulary, vocab_id)
+    if row is None or row.user_id != user_id:
+        raise ValueError("not_found")
+    db.delete(row)
+
+
 def pick_next_review(
     db: Session, user_id: int, source_lang: Optional[str] = None, target_lang: Optional[str] = None
 ) -> Optional[Vocabulary]:

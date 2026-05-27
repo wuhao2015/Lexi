@@ -216,6 +216,11 @@ function renderRegister(msg = ""): void {
 }
 
 let lastLookup: LookupResult | null = null;
+let lastLookupRemovedFromList = false;
+
+async function deleteVocabularyItem(id: number): Promise<void> {
+  await api(`/vocabulary/${id}`, { method: "DELETE" });
+}
 
 function renderSearch(msg = "", err = ""): void {
   view = "search";
@@ -231,7 +236,14 @@ function renderSearch(msg = "", err = ""): void {
       <div class="result-term">${escapeHtml(lastLookup.display_term)}${formatSlashPronunciation(lastLookup.term_pronunciation)}${badge ? ` ${badge}` : ""}</div>
       <div class="result-zh">${escapeHtml(lastLookup.primary_translation)}${formatSlashPronunciation(lastLookup.translation_pronunciation)}</div>
       ${renderTermSupplements(lastLookup)}
-      <p style="color:var(--muted);font-size:0.85rem;">Saved to your review list.</p>
+      ${
+        lastLookupRemovedFromList
+          ? `<p style="color:var(--muted);font-size:0.85rem;">Removed from your review list.</p>`
+          : `<div class="actions" style="margin-top:1rem;margin-bottom:0;">
+        <p style="color:var(--muted);font-size:0.85rem;margin:0;flex:1;">Saved to your review list.</p>
+        <button type="button" class="secondary" id="btn-remove-lookup">Remove from list</button>
+      </div>`
+      }
     </div>`
     : "";
 
@@ -288,12 +300,24 @@ function renderSearch(msg = "", err = ""): void {
         method: "POST",
         json: { term, source_lang: selectedSource, target_lang: selectedTarget },
       });
+      lastLookupRemovedFromList = false;
       renderSearch("", "");
     } catch (err) {
       lastLookup = null;
       renderSearch("", err instanceof ApiError ? err.detail : "Lookup failed");
     } finally {
       btn.disabled = false;
+    }
+  });
+  document.getElementById("btn-remove-lookup")?.addEventListener("click", async () => {
+    if (!lastLookup || lastLookupRemovedFromList) return;
+    if (!confirm("Remove this word from your review list?")) return;
+    try {
+      await deleteVocabularyItem(lastLookup.vocabulary_id);
+      lastLookupRemovedFromList = true;
+      renderSearch("", "");
+    } catch (err) {
+      alert(err instanceof ApiError ? err.detail : "Failed to remove");
     }
   });
 }
@@ -382,7 +406,10 @@ function renderReview(): void {
       ${renderLearningLanguageLine("review-target-lang", "review-source-lang", { formNames: false, pairFilter: true })}
       <p class="learning-subhint">Review uses the same pair; answer in the language of the prompt.</p>
       <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">What does this mean?</p>
-      <div class="review-prompt">${escapeHtml(prompt)}${formatSlashPronunciation(reviewItem.term_pronunciation)}</div>
+      <div class="review-prompt-row">
+        <div class="review-prompt">${escapeHtml(prompt)}${formatSlashPronunciation(reviewItem.term_pronunciation)}</div>
+        <button type="button" class="icon-btn" id="btn-remove-vocab" aria-label="I don't want to review this word" title="I don't want to review this word">🅧</button>
+      </div>
       <form id="form-review">
         <div class="field">
           <label for="expl">Your explanation</label>
@@ -408,6 +435,17 @@ function renderReview(): void {
   `);
   bindLogout();
   bindReviewPairSelectors();
+  document.getElementById("btn-remove-vocab")?.addEventListener("click", async () => {
+    if (!reviewItem) return;
+    if (!confirm("Remove this word from your review list?")) return;
+    try {
+      await deleteVocabularyItem(reviewItem.id);
+      await loadReview();
+      renderReview();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.detail : "Failed to remove");
+    }
+  });
   if (!fb) {
     document.getElementById("form-review")?.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -441,6 +479,7 @@ function bindLogout(): void {
     clearToken();
     user = null;
     lastLookup = null;
+    lastLookupRemovedFromList = false;
     window.location.hash = "#login";
     render();
   });
