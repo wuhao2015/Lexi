@@ -105,6 +105,11 @@ def call_gemini_translate(
         f"Line 5: lemma in {learning_name}.\n"
         f"Line 6: how to pronunce the term.\n"
         f"Line 7: how to pronunce the translation.\n"
+        "Pronunciation rules:\n"
+        "- Output phonetic notation only on lines 6 to 7; no slashes, quotes, or labels.\n"
+        "- Use IPA Unicode characters, not ASCII approximations.\n"
+        "- Multi-word phrases: separate words with a space inside one IPA string.\n"
+        "- If unsure, prefer narrow IPA over English respelling.\n"
         "Do not add labels or markdown.\n\n"
         f"{from_name}: {term}\n"
     )
