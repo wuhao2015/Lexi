@@ -29,22 +29,44 @@ def _strip_code_fences(text: str) -> str:
     return t.strip()
 
 
+_NO_ALTS_MARKERS = frozenset({"-", "—", "none", "n/a", "na"})
+
+
+def _parse_alts_line(alts_line: str) -> Optional[List[str]]:
+    stripped = alts_line.strip()
+    if not stripped:
+        return None
+    if stripped.rstrip(",").strip().lower() in _NO_ALTS_MARKERS:
+        return None
+    parts = [
+        p for p in (part.strip() for part in alts_line.split(","))
+        if p and p.lower() not in _NO_ALTS_MARKERS
+    ]
+    return parts or None
+
+
 def parse_translation_response(
     raw: str,
 ) -> Tuple[str, Optional[List[str]], str, str, str, str, str]:
     """
     Seven lines (padded): primary, optional comma-separated alts, explanation, example,
     lemma, term pronunciation, translation pronunciation.
+
+    Gemini often omits a blank alt line and returns six lines; detect that and shift fields.
     """
     text = _strip_code_fences(raw)
-    lines = [ln.strip() for ln in text.splitlines()][:7]
-    while len(lines) < 7:
-        lines.append("")
-    primary, alts_line, explanation, example, lemma, term_pron, trans_pron = lines
-    alts: Optional[List[str]] = None
-    if alts_line:
-        parts = [p.strip() for p in alts_line.split(",") if p.strip()]
-        alts = parts or None
+    non_empty = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    if len(non_empty) == 6:
+        primary, explanation, example, lemma, term_pron, trans_pron = non_empty
+        alts = None
+    else:
+        lines = non_empty[:7]
+        while len(lines) < 7:
+            lines.append("")
+        primary, alts_line, explanation, example, lemma, term_pron, trans_pron = lines
+        alts = _parse_alts_line(alts_line)
+
     return (
         primary,
         alts,
@@ -76,8 +98,8 @@ def call_gemini_translate(
         f"Translate the following {from_name} word or phrase to {to_name}.\n"
         "Reply with:\n"
         f"Line 1: the primary translation only.\n"
-        f"Line 2 (optional): comma-separated synonyms or alternative glosses in {to_name}, "
-        "or leave this line blank if none.\n"
+        f"Line 2: comma-separated synonyms or alternative glosses in {to_name}, "
+        "or a single dash - only when there are truly no synonyms (always include this line).\n"
         f"Line 3: explanation in {known_name} — do NOT use {learning_name} for this line.\n"
         f"Line 4: an example sentence in {learning_name}.\n"
         f"Line 5: lemma in {learning_name}.\n"
