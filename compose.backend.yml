@@ -1,0 +1,14 @@
+services:
+  lexi-api:
+    build:
+      context: ./backend
+    image: lexi-api:latest
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/lexi.db}
+    ports:
+      - "${LEXI_API_PORT:-8000}:8000"
+    volumes:
+      - ./backend/data:/app/data
+    restart: unless-stopped

@@ -54,6 +54,17 @@ npm run build
 
 Then open `http://localhost:8000/` with only uvicorn running.
 
+## Backend container deployment
+
+If the frontend is deployed separately, for example on Vercel, you can package only the FastAPI backend as a container image:
+
+```bash
+docker build -t lexi-api:latest backend
+docker compose -f compose.backend.yml up -d --build
+```
+
+Create `backend/.env` first and set production values such as `GEMINI_API_KEY`, `JWT_SECRET`, and `CORS_ORIGINS=https://your-vercel-app.vercel.app`. The compose setup stores SQLite data in the `lexi-data` Docker volume. See [`backend/DEPLOY.md`](backend/DEPLOY.md) for release and server deployment commands.
+
 ## Deploying the frontend to [Vercel](https://vercel.com/)
 
 Vercel is a good fit for the **Vite UI**. The **FastAPI** app uses SQLite and a long‑running server, so run the API on a VPS, [Railway](https://railway.app/), [Render](https://render.com/), [Fly.io](https://fly.io/), or similar, then point the static site at that API.
