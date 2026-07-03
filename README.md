@@ -2,6 +2,15 @@
 
 A small full-stack dictionary web app with multilingual pair lookups (backed by **Gemini** with a **global translation cache**) and per-user review queues with local grading.
 
+## Ports
+
+| Port | Usage |
+|------|-------|
+| `8000` | FastAPI backend/API and the built web UI. Docker maps this container port to host port `8000` by default; set `LEXI_API_PORT` to change the host port. |
+| `5173` | Vite frontend development server. It proxies `/api` requests to the backend on port `8000`. |
+
+In production, when the frontend is built into `backend/static`, only the backend port is required.
+
 ## Requirements
 
 - Python 3.9+
