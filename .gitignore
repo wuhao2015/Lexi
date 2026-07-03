@@ -10,3 +10,5 @@ frontend/dist/
 .env
 backend/.env
 .vscode/
+.cursor
+ToDos.md
